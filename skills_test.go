@@ -161,6 +161,23 @@ func TestFindCLAUDEMDs_FallbackToRegular(t *testing.T) {
 }
 
 func TestBuildProjectIndex_NotEmpty(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("Test project"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	origHome := home
+	origProjectRoots := projectRoots
+	home = dir
+	projectRoots = []string{projectDir}
+	t.Cleanup(func() {
+		home = origHome
+		projectRoots = origProjectRoots
+	})
+
 	idx := buildProjectIndex()
 	if idx == "" {
 		t.Fatal("project index is empty")
@@ -171,6 +188,23 @@ func TestBuildProjectIndex_NotEmpty(t *testing.T) {
 }
 
 func TestBuildProjectIndex_NoDuplicates(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("Test project"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	origHome := home
+	origProjectRoots := projectRoots
+	home = dir
+	projectRoots = []string{projectDir}
+	t.Cleanup(func() {
+		home = origHome
+		projectRoots = origProjectRoots
+	})
+
 	idx := buildProjectIndex()
 	lines := strings.Split(idx, "\n")
 	seen := make(map[string]bool)

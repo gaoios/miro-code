@@ -193,8 +193,12 @@ func handleSpawn(args []string) {
 			fmt.Fprintf(os.Stderr, "[%s] --bare requires --model <model>\n", appName)
 			os.Exit(1)
 		}
-		// Fuzzy resolve model name (e.g. "glm" → "zai/glm-5.1")
-		if resolved, err := resolveFuzzyModel(bareModel); err != nil {
+		// Fuzzy resolve model name (e.g. "glm" → "zai/glm-5.1").
+		// codex/grok/kimi backends use native model IDs that don't live in the
+		// Claude model registry, so route through resolveSpawnModel (which
+		// passes those straight through) instead of always fuzzy-matching
+		// against Claude aliases/providers.
+		if resolved, err := resolveSpawnModel(bareModel, bareBackend); err != nil {
 			fmt.Fprintf(os.Stderr, "[%s] %v\n", appName, err)
 			os.Exit(1)
 		} else if resolved != "" {
@@ -225,7 +229,7 @@ func handleSpawn(args []string) {
 		}
 		fmt.Fprintf(os.Stderr, "usage: %s spawn <agent> \"task\" [--wait]\n", appName)
 		fmt.Fprintf(os.Stderr, "       %s spawn --self main \"task\" [--wait] [--model <model>]  — spawn with own soul\n", appName)
-		fmt.Fprintf(os.Stderr, "       %s spawn --bare --model <model> --project <path> [--backend cc|codex|auto] \"task\" [--wait]\n", appName)
+		fmt.Fprintf(os.Stderr, "       %s spawn --bare --model <model> --project <path> [--backend cc|codex|grok|kimi|agy|auto] \"task\" [--wait]\n", appName)
 		fmt.Fprintf(os.Stderr, "       %s spawn list          — show recent spawns\n", appName)
 		fmt.Fprintf(os.Stderr, "       %s spawn log <id>      — view spawn output\n\n", appName)
 		fmt.Fprintln(os.Stderr, "Available agents:")
@@ -258,7 +262,7 @@ func handleSpawn(args []string) {
 			Workspace: workspace,
 		}
 		if bareModel != "" {
-			if resolved, err := resolveFuzzyModel(bareModel); err != nil {
+			if resolved, err := resolveSpawnModel(bareModel, bareBackend); err != nil {
 				fmt.Fprintf(os.Stderr, "[%s] %v\n", appName, err)
 				os.Exit(1)
 			} else if resolved != "" {
@@ -875,7 +879,16 @@ func (api *serverAPI) waitSession(sessionID string) error {
 //
 // backend (Round 4) is forwarded as the "backend" body field. Empty / "auto"
 // lets the server auto-route by model; "cc" pins Claude Code; "codex" pins
-// the OpenAI codex JSON-RPC backend.
+// the OpenAI codex JSON-RPC backend; "grok" pins Grok Build headless.
+func resolveSpawnModel(model, backend string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(backend)) {
+	case "codex", "grok", "kimi", "agy":
+		return model, nil
+	default:
+		return resolveFuzzyModel(model)
+	}
+}
+
 func handleBareSpawn(name, model, project, task string, wait bool, backend string) {
 	api := newServerAPI()
 	if api == nil {

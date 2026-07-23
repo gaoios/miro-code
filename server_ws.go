@@ -243,9 +243,9 @@ func (c *wsClient) handleMessage(raw []byte) {
 		ReplaceSoul *bool  `json:"replace_soul"` // 本我模式; nil → default true for create, inherit-from-DB for resume
 		Mode        string `json:"mode"`         // "weiran"/"benwo"/"cc"; overrides SoulFiles+ReplaceSoul when set
 		// Backend selects the harness driving this session: "cc" (Claude Code
-		// stream-json), "codex" (OpenAI codex JSON-RPC), or "" / "auto" to let
-		// resolveBackendKind decide based on model name. Mirrors the REST
-		// /api/sessions field of the same name.
+		// stream-json), "codex" (OpenAI codex JSON-RPC), "grok" (Grok Build
+		// headless), or "" / "auto" to let resolveBackendKind decide based on
+		// model name. Mirrors the REST /api/sessions field of the same name.
 		Backend string `json:"backend"`
 		// RequestID is an opaque token the client mints per request and
 		// expects echoed in the response. Used by `resume` to discriminate
@@ -397,14 +397,10 @@ func (c *wsClient) handleMessage(raw []byte) {
 				replaceSoul = r
 			}
 		}
-		model := msg.Model
-		if model == "" {
-			model = c.hub.defaultInteractiveModel
-		}
 		// Backend kind: same parsing rules as the REST POST /api/sessions
 		// path (server.go ~L797). Empty / "auto" → resolveBackendKind picks
-		// based on model. Explicit "cc"/"codex" wins. Anything else is a
-		// client bug — surface it instead of silently defaulting.
+		// based on model. Explicit "cc"/"codex"/"grok" wins. Anything else
+		// is a client bug — surface it instead of silently defaulting.
 		var backendKind BackendKind
 		switch strings.ToLower(strings.TrimSpace(msg.Backend)) {
 		case "", "auto":
@@ -417,10 +413,29 @@ func (c *wsClient) handleMessage(raw []byte) {
 				return
 			}
 			backendKind = BackendCodex
+		case string(BackendGrok), "grok-build":
+			if !grokEnabled {
+				c.sendJSON(map[string]string{"type": "error", "error": "backend=grok requested but agents.grok.enabled=false in config.json"})
+				return
+			}
+			backendKind = BackendGrok
+		case string(BackendKimi), "kimi-cli", "moonshot-kimi":
+			if !kimiEnabled {
+				c.sendJSON(map[string]string{"type": "error", "error": "backend=kimi requested but agents.kimi.enabled=false in config.json"})
+				return
+			}
+			backendKind = BackendKimi
+		case string(BackendAgy), "antigravity", "antigravity-cli":
+			if !agyEnabled {
+				c.sendJSON(map[string]string{"type": "error", "error": "backend=agy requested but agents.agy.enabled=false in config.json"})
+				return
+			}
+			backendKind = BackendAgy
 		default:
-			c.sendJSON(map[string]string{"type": "error", "error": fmt.Sprintf("unknown backend %q (expected cc|codex|auto)", msg.Backend)})
+			c.sendJSON(map[string]string{"type": "error", "error": fmt.Sprintf("unknown backend %q (expected cc|codex|grok|kimi|agy|auto)", msg.Backend)})
 			return
 		}
+		model := resolveCreateModel(msg.Model, CategoryInteractive, backendKind, c.hub.defaultInteractiveModel)
 		sess, err := c.hub.sm.createSessionWithOpts(sessionCreateOpts{
 			Name:        name,
 			Project:     project,

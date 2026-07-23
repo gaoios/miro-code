@@ -45,6 +45,7 @@ func newCodexBridgeTestSession(t *testing.T) (*serverSession, *codexBackend, *su
 	t.Cleanup(func() {
 		bc.unsubscribe(sub)
 		cb.markDone()
+		sess.waitBridgeDone()
 	})
 	return sess, cb, sub
 }

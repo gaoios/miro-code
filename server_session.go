@@ -100,7 +100,7 @@ type serverSession struct {
 	StreamURL     string          `json:"stream_url"`
 	SoulEnabled   bool            `json:"soul_enabled"`
 	ChromeEnabled bool            `json:"chrome_enabled"`
-	Effort        string          `json:"effort,omitempty"` // CC reasoning effort tier (low/medium/high/xhigh/max), persisted
+	Effort        string          `json:"effort,omitempty"`     // CC reasoning effort tier (low/medium/high/xhigh/max), persisted
 	ReplaceSoul   bool            `json:"replace_soul"`         // 本我模式 — use --system-prompt-file (replace) instead of --append-system-prompt-file
 	FirstMsg      string          `json:"first_msg,omitempty"`  // First user message (for hint display)
 	GalID         string          `json:"gal_id,omitempty"`     // GAL save id this session was resumed from
@@ -1074,7 +1074,7 @@ type sessionCreateOpts struct {
 	InitialMessage string
 	// Backend selects which Backend implementation drives the session.
 	// Empty defaults through resolveBackendKind: explicit > model auto-route
-	// > BackendCC. BackendCodex routes through spawnCodex (Round 4).
+	// > BackendCC.
 	Backend BackendKind
 }
 
@@ -1114,9 +1114,17 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 		category = CategoryInteractive
 	}
 
-	// Fuzzy resolve model name (e.g. "glm" → "zai/glm-5.1") — defensive,
-	// callers should already resolve but bare spawn via API may not.
-	if opts.Model != "" {
+	// Backend selection: explicit (from API body / spawn flag) > model
+	// auto-route > BackendCC default. Resolve before fuzzy model matching so
+	// backend-native names such as "gpt-5.5" or "grok-4" can pass through
+	// unchanged when the caller explicitly requested codex/grok.
+	backendKind := resolveBackendKind(opts.Backend, opts.Model)
+
+	// Fuzzy resolve CC/provider model names (e.g. "glm" → "zai/glm-5.1") —
+	// defensive, callers should already resolve but bare spawn via API may
+	// not. Non-CC backends own their model namespace, so do not run them
+	// through the provider model registry.
+	if opts.Model != "" && backendKind == BackendCC {
 		if resolved, err := resolveFuzzyModel(opts.Model); err == nil && resolved != "" {
 			opts.Model = resolved
 		} else if err != nil {
@@ -1139,10 +1147,6 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 	if tags == nil {
 		tags = []string{}
 	}
-
-	// Backend selection: explicit (from API body / spawn flag) > model
-	// auto-route > BackendCC default. resolveBackendKind handles the priority.
-	backendKind := resolveBackendKind(opts.Backend, opts.Model)
 
 	sess := &serverSession{
 		ID:          id,
@@ -1249,6 +1253,30 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 		}
 		proc = cb
 		recordBackendStart(BackendCodex)
+	case BackendGrok:
+		gb, err := spawnGrok(spawnOpts)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("spawn grok: %w", err)
+		}
+		proc = gb
+		recordBackendStart(BackendGrok)
+	case BackendKimi:
+		kb, err := spawnKimi(spawnOpts)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("spawn kimi: %w", err)
+		}
+		proc = kb
+		recordBackendStart(BackendKimi)
+	case BackendAgy:
+		ab, err := spawnAgy(spawnOpts)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("spawn agy: %w", err)
+		}
+		proc = ab
+		recordBackendStart(BackendAgy)
 	default:
 		ccb, err := spawnClaude(spawnOpts)
 		if err != nil {
@@ -1303,6 +1331,12 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 	switch p := proc.(type) {
 	case *codexBackend:
 		attachCodexBridge(p, sess, "server-create", true)
+	case *grokBackend:
+		attachGrokBridge(p, sess, "server-create", true)
+	case *kimiBackend:
+		attachKimiBridge(p, sess, "server-create", true)
+	case *agyBackend:
+		attachAgyBridge(p, sess, "server-create", true)
 	case *claudeBackend:
 		attachProcessBridge(p, sess, "server-create", true)
 	default:
@@ -1337,8 +1371,8 @@ func (sm *sessionManager) listSessions() []map[string]any {
 // toggled on/off. The serverSession (broadcaster, history, name, etc.) is
 // preserved across the reload — only the subprocess is swapped.
 //
-// Codex backend: chrome is a CC-only concept. Returning an error here
-// prevents silently swapping the codex subprocess for a fresh CC process
+// Alternate backends: chrome is a CC-only concept. Returning an error here
+// prevents silently swapping the backend subprocess for a fresh CC process
 // and losing thread state. The HTTP handler surfaces the error to the
 // caller as 5xx.
 func (sm *sessionManager) setChrome(id string, enabled bool) error {
@@ -1348,9 +1382,10 @@ func (sm *sessionManager) setChrome(id string, enabled bool) error {
 	}
 
 	sess.mu.Lock()
-	if sess.Backend == BackendCodex {
+	if sess.Backend != BackendCC {
+		backend := sess.Backend
 		sess.mu.Unlock()
-		return fmt.Errorf("setChrome not supported on codex backend")
+		return fmt.Errorf("setChrome not supported on %s backend", backend)
 	}
 	if sess.ChromeEnabled == enabled && sess.process != nil && sess.process.alive() {
 		sess.mu.Unlock()
@@ -1450,12 +1485,13 @@ func (sm *sessionManager) setMode(id, mode string) error {
 	}
 
 	sess.mu.Lock()
-	// Codex backend: mode (weiran/benwo/cc) is a CC system-prompt concept.
-	// Reloading would silently swap the codex subprocess for a CC process
+	// Alternate backends: mode (weiran/benwo/cc) is a CC system-prompt concept.
+	// Reloading would silently swap the backend subprocess for a CC process
 	// and lose thread state. Return an error instead.
-	if sess.Backend == BackendCodex {
+	if sess.Backend != BackendCC {
+		backend := sess.Backend
 		sess.mu.Unlock()
-		return fmt.Errorf("setMode not supported on codex backend")
+		return fmt.Errorf("setMode not supported on %s backend", backend)
 	}
 	// No-op if already in target mode and process alive
 	if sess.SoulEnabled == soulEnabled && sess.ReplaceSoul == replaceSoul &&
@@ -1549,13 +1585,12 @@ func (sm *sessionManager) setModel(id string, model string) error {
 	}
 
 	sess.mu.Lock()
-	// Codex backend: codex doesn't support mid-thread setModel (per
-	// codex_backend.go header comment). A future implementation would
-	// thread/resume the codex process to swap models; until then, return
+	// Alternate backends do not share CC's reload/resume semantics. Return
 	// an error rather than silently swapping for a CC process.
-	if sess.Backend == BackendCodex {
+	if sess.Backend != BackendCC {
+		backend := sess.Backend
 		sess.mu.Unlock()
-		return fmt.Errorf("setModel not supported on codex backend")
+		return fmt.Errorf("setModel not supported on %s backend", backend)
 	}
 	if sess.Model == model && sess.process != nil && sess.process.alive() {
 		sess.mu.Unlock()

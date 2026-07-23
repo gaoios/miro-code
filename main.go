@@ -39,18 +39,27 @@ var (
 	defaultAppName = "" // injected via ldflags; takes priority over os.Args[0]
 )
 
+// toolCLIConfig describes a non-conversational CLI that workers can invoke in
+// the shared project environment. Tool CLIs do not implement Backend.
+type toolCLIConfig struct {
+	Enabled      bool     `json:"enabled"`
+	Binary       string   `json:"binary"`
+	Capabilities []string `json:"capabilities"`
+	DispatchHint string   `json:"dispatch_hint"`
+}
+
 var (
 	home    = os.Getenv("HOME")
 	appName string // derived from os.Args[0] basename, e.g. "weiran", "soul"
 
-	workspace string // <appHome>/workspace
-	agentName string // defaults to appName, overridable via config.json
+	workspace         string // <appHome>/workspace
+	agentName         string // defaults to appName, overridable via config.json
 	agentAvatarURL    string // optional avatar image URL (from config.json "avatarUrl")
 	agentWelcomeImage string // optional full-body welcome image URL (from config.json "welcomeImage")
 	userAvatarURL     string // optional user avatar image URL (from config.json "userAvatarUrl")
-	claudeBin = findClaudeBin()
-	lockfile  string // /tmp/<appName>.lock
-	dbPath    string // <appDir>/sessions.db
+	claudeBin         = findClaudeBin()
+	lockfile          string // /tmp/<appName>.lock
+	dbPath            string // <appDir>/sessions.db
 
 	// Claude Code config directory (sessions, projects, settings).
 	// Defaults to ~/.claude; override with CLAUDE_CONFIG_DIR env var for instance isolation.
@@ -97,10 +106,10 @@ var (
 	// Used with -p to mark one-shot sessions as non-interactive in server_sessions DB.
 	overrideCategory string
 
-	// Core/Backend override: --core codex|cc
+	// Core/Backend override: --core grok|codex|cc
 	// When set, forces the session to use a specific harness backend regardless
-	// of model auto-routing. "codex" forces -p mode to delegate to server with
-	// backend=codex (codex backend only lives in server). Empty = auto-route.
+	// of model auto-routing. Non-CC backends force -p mode to delegate to server
+	// because those backends live in the server process. Empty = auto-route.
 	overrideCore string
 
 	// Default model for cron/heartbeat (from config.json "defaultModel")
@@ -123,6 +132,33 @@ var (
 	codexModelMap          map[string]string // weiran model name → codex model name (e.g. "opus[1m]" → "gpt-5.1-codex-max")
 	codexPermissionProfile string            // default codex permission profile (e.g. "workspaceWrite")
 	codexApprovalPolicy    string            // default codex approval policy (e.g. "never")
+	codexDispatchHint      string            // optional local routing guidance injected into the supervisor prompt
+
+	// Grok backend config (from config.json "agents.grok.*"). Grok Build
+	// runs as a headless one-shot subprocess per user turn. Disabled by
+	// default so existing users see no behavior change.
+	grokEnabled      bool              // master switch
+	grokBinary       string            // path to grok binary; default "grok" via PATH
+	grokModelMap     map[string]string // weiran model name → grok model name (e.g. "grok-fast" → "grok-4-fast")
+	grokDispatchHint string
+
+	// Kimi CLI headless one-shot backend config.
+	kimiEnabled      bool
+	kimiBinary       string
+	kimiModelMap     map[string]string
+	kimiDispatchHint string
+
+	// Antigravity CLI headless one-shot backend config.
+	agyEnabled                    bool
+	agyBinary                     string
+	agyModelMap                   map[string]string
+	agyDispatchHint               string
+	agyMode                       string
+	agyEffort                     string
+	agyDangerouslySkipPermissions bool
+
+	// Non-conversational CLIs available to workers in the shared environment.
+	toolCLIs map[string]toolCLIConfig
 
 	launchDir  string // original working directory before chdir to workspace
 	galContext string // GAL save JSON injected into prompt for resume
@@ -150,7 +186,6 @@ var (
 
 	// Current run mode (cron/heartbeat/interactive etc.), used for metrics recording
 	currentMode string
-
 
 	// replaceSoul enables Id Mode (本我) — use --system-prompt-file (replace CC's
 	// native system prompt) instead of --append-system-prompt-file.
@@ -404,25 +439,51 @@ func loadConfig() {
 		ModelMap          map[string]string `json:"model_map"`          // weiran model name → codex model name
 		PermissionProfile string            `json:"permission_profile"` // codex permission profile (default "workspaceWrite")
 		ApprovalPolicy    string            `json:"approval_policy"`    // codex approval policy (default "never")
+		DispatchHint      string            `json:"dispatch_hint"`
+	}
+	type grokBlock struct {
+		Enabled      bool              `json:"enabled"`   // master switch
+		Binary       string            `json:"binary"`    // path to grok binary; default "grok" via PATH
+		ModelMap     map[string]string `json:"model_map"` // weiran model name → grok model name
+		DispatchHint string            `json:"dispatch_hint"`
+	}
+	type kimiBlock struct {
+		Enabled      bool              `json:"enabled"`
+		Binary       string            `json:"binary"`
+		ModelMap     map[string]string `json:"model_map"`
+		DispatchHint string            `json:"dispatch_hint"`
+	}
+	type agyBlock struct {
+		Enabled                    bool              `json:"enabled"`
+		Binary                     string            `json:"binary"`
+		ModelMap                   map[string]string `json:"model_map"`
+		DispatchHint               string            `json:"dispatch_hint"`
+		Mode                       string            `json:"mode"`
+		Effort                     string            `json:"effort"`
+		DangerouslySkipPermissions bool              `json:"dangerously_skip_permissions"`
 	}
 	type agentsBlock struct {
 		Codex codexBlock `json:"codex"`
+		Grok  grokBlock  `json:"grok"`
+		Kimi  kimiBlock  `json:"kimi"`
+		Agy   agyBlock   `json:"agy"`
 	}
 	type appConfig struct {
-		JiraToken            string   `json:"jiraToken"`
-		TelegramChatID       string   `json:"telegramChatID"`
-		ProjectRoots         []string `json:"projectRoots"`
-		AgentName            string   `json:"agentName"`
-		AgentNick            string   `json:"agentNick"`            // agent's display name / nickname (e.g. "未然")
-		OwnerName            string   `json:"ownerName"`            // human user's display name (e.g. "Alice")
-		AvatarURL            string   `json:"avatarUrl"`            // optional avatar image URL for WebUI
-		UserAvatarURL        string   `json:"userAvatarUrl"`        // optional user avatar image URL for WebUI
-		WelcomeImage         string   `json:"welcomeImage"`         // optional full-body welcome page image URL
-		DefaultModel          string   `json:"defaultModel"`          // default model for cron/heartbeat (e.g. "zai/glm-5.1")
-		DefaultModelFallbacks []string `json:"defaultModelFallbacks"` // fallback models for non-interactive modes (e.g. ["minimax/MiniMax-M2.7-highspeed"])
-		SoulSessionMaxRounds  int      `json:"soulSessionMaxRounds"`  // 0 = disabled, default 30
-		Server                serverBlock `json:"server"`             // server-side config (shared with server mode)
-		Agents                agentsBlock `json:"agents"`             // per-backend agent config (Round 4: codex)
+		JiraToken             string                   `json:"jiraToken"`
+		TelegramChatID        string                   `json:"telegramChatID"`
+		ProjectRoots          []string                 `json:"projectRoots"`
+		AgentName             string                   `json:"agentName"`
+		AgentNick             string                   `json:"agentNick"`             // agent's display name / nickname (e.g. "未然")
+		OwnerName             string                   `json:"ownerName"`             // human user's display name (e.g. "Alice")
+		AvatarURL             string                   `json:"avatarUrl"`             // optional avatar image URL for WebUI
+		UserAvatarURL         string                   `json:"userAvatarUrl"`         // optional user avatar image URL for WebUI
+		WelcomeImage          string                   `json:"welcomeImage"`          // optional full-body welcome page image URL
+		DefaultModel          string                   `json:"defaultModel"`          // default model for cron/heartbeat (e.g. "zai/glm-5.1")
+		DefaultModelFallbacks []string                 `json:"defaultModelFallbacks"` // fallback models for non-interactive modes (e.g. ["minimax/MiniMax-M2.7-highspeed"])
+		SoulSessionMaxRounds  int                      `json:"soulSessionMaxRounds"`  // 0 = disabled, default 30
+		Server                serverBlock              `json:"server"`                // server-side config (shared with server mode)
+		Agents                agentsBlock              `json:"agents"`                // per-backend agent config (Round 4: codex)
+		Tools                 map[string]toolCLIConfig `json:"tools"`                 // non-conversational CLIs shared by workers
 	}
 	var cfg appConfig
 	if cfgData != nil {
@@ -546,6 +607,46 @@ func loadConfig() {
 	if codexApprovalPolicy == "" {
 		codexApprovalPolicy = codexDefaultApprovalPolicy
 	}
+	codexDispatchHint = cfg.Agents.Codex.DispatchHint
+
+	// agents.grok.* — Grok Build headless backend config. Disabled by
+	// default; users opt in via agents.grok.enabled in config.json.
+	grokEnabled = cfg.Agents.Grok.Enabled
+	grokBinary = cfg.Agents.Grok.Binary
+	if grokBinary == "" {
+		grokBinary = "grok"
+	}
+	grokModelMap = cfg.Agents.Grok.ModelMap
+	grokDispatchHint = cfg.Agents.Grok.DispatchHint
+
+	// agents.kimi.* — Kimi CLI headless backend config. Disabled by default.
+	kimiEnabled = cfg.Agents.Kimi.Enabled
+	kimiBinary = cfg.Agents.Kimi.Binary
+	if kimiBinary == "" {
+		kimiBinary = "kimi"
+	}
+	kimiModelMap = cfg.Agents.Kimi.ModelMap
+	kimiDispatchHint = cfg.Agents.Kimi.DispatchHint
+
+	// agents.agy.* — Antigravity CLI headless backend config.
+	agyEnabled = cfg.Agents.Agy.Enabled
+	agyBinary = cfg.Agents.Agy.Binary
+	if agyBinary == "" {
+		agyBinary = "agy"
+	}
+	agyModelMap = cfg.Agents.Agy.ModelMap
+	agyDispatchHint = cfg.Agents.Agy.DispatchHint
+	agyMode = cfg.Agents.Agy.Mode
+	if agyMode == "" {
+		agyMode = "plan"
+	}
+	agyEffort = cfg.Agents.Agy.Effort
+	if agyEffort == "" {
+		agyEffort = "low"
+	}
+	agyDangerouslySkipPermissions = cfg.Agents.Agy.DangerouslySkipPermissions
+
+	toolCLIs = cfg.Tools
 }
 
 // readNameFromMD scans the given markdown file's first ~30 lines for a
@@ -1154,16 +1255,16 @@ func main() {
 		execClaude(args)
 
 	case "print":
-		// Force delegation to server when --core codex (codex backend only
-		// runs inside the server) or --category is set (so the session gets
-		// proper category tagging in server_sessions DB).
-		if overrideCore == "codex" {
+		// Force delegation to server when --core selects a non-CC backend
+		// (alternate backends only run inside the server) or --category is set
+		// (so the session gets proper category tagging in server_sessions DB).
+		if overrideCore == "codex" || overrideCore == "grok" || overrideCore == "kimi" || overrideCore == "agy" {
 			category := overrideCategory
 			if category == "" {
 				category = CategoryInteractive
 			}
 			if !delegatePrintToServer(printPrompt, category) {
-				fmt.Fprintf(os.Stderr, "[%s] --core codex requires running server (start with `%s server`)\n", appName, appName)
+				fmt.Fprintf(os.Stderr, "[%s] --core %s requires running server (start with `%s server`)\n", appName, overrideCore, appName)
 				os.Exit(1)
 			}
 			return
@@ -1401,9 +1502,15 @@ func delegatePrintToServer(prompt, category string) bool {
 	if overrideModel != "" {
 		payload["model"] = overrideModel
 	}
-	// --core flag → backend hint. "codex" / "cc" map directly; "auto" / ""
+	// --core flag → backend hint. "grok" / "codex" / "cc" map directly; "auto" / ""
 	// omit the field so server-side resolveBackendKind can auto-route.
 	switch overrideCore {
+	case "grok":
+		payload["backend"] = "grok"
+	case "kimi":
+		payload["backend"] = "kimi"
+	case "agy":
+		payload["backend"] = "agy"
 	case "codex":
 		payload["backend"] = "codex"
 	case "cc":
@@ -1563,15 +1670,15 @@ func parseArgs(args []string) (mode, printPrompt string, extra []string) {
 				i++
 			}
 		case "--core":
-			// Backend override: "codex" or "cc". Forces -p mode to delegate
-			// to server with backend hint, since codex backend only runs there.
+			// Backend override. Non-CC backends force -p mode to delegate to
+			// server with backend hint because they only run there.
 			if i+1 < len(args) {
 				v := strings.ToLower(strings.TrimSpace(args[i+1]))
 				switch v {
-				case "codex", "cc", "auto", "":
+				case "grok", "kimi", "agy", "codex", "cc", "auto", "":
 					overrideCore = v
 				default:
-					fmt.Fprintf(os.Stderr, "[%s] unknown --core %q (expected codex|cc|auto)\n", appName, args[i+1])
+					fmt.Fprintf(os.Stderr, "[%s] unknown --core %q (expected grok|kimi|agy|codex|cc|auto)\n", appName, args[i+1])
 					os.Exit(1)
 				}
 				i++
@@ -1587,12 +1694,11 @@ func parseArgs(args []string) (mode, printPrompt string, extra []string) {
 		}
 	}
 	// Post-pass: resolve --model now that --core is known.
-	// When --core codex, the model is a codex-side name (e.g. "gpt-5.5",
-	// "gpt-5.1-codex-max") that doesn't live in any provider model list,
-	// so we skip fuzzy resolution and pass it through unchanged. The server
-	// will hand it to codexResolveModel/codex thread/start.
+	// When --core codex/grok, the model is a backend-side name that may not
+	// live in any provider model list, so we skip fuzzy resolution and pass
+	// it through unchanged. The server hands it to the backend's resolver.
 	if rawModel != "" {
-		if overrideCore == "codex" {
+		if overrideCore == "codex" || overrideCore == "grok" || overrideCore == "kimi" || overrideCore == "agy" {
 			overrideModel = rawModel
 		} else {
 			resolved, err := resolveFuzzyModel(rawModel)

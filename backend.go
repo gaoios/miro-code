@@ -31,9 +31,8 @@ type SessionOpts = sessionOpts
 
 // BackendKind identifies which backend implementation a session is using.
 //
-// Today only "cc" exists; "codex" lands in Round 3. Adding a new backend
-// kind is a matter of registering it here and providing a Backend
-// implementation in its own file (e.g. codex_backend.go).
+// Adding a new backend kind is a matter of registering it here and providing
+// a Backend implementation in its own file (e.g. codex_backend.go).
 type BackendKind string
 
 const (
@@ -41,6 +40,12 @@ const (
 	BackendCC BackendKind = "cc"
 	// BackendCodex is the OpenAI codex app-server JSON-RPC backend (Round 3).
 	BackendCodex BackendKind = "codex"
+	// BackendGrok is the xAI Grok Build headless subprocess backend.
+	BackendGrok BackendKind = "grok"
+	// BackendKimi is the Moonshot Kimi CLI headless subprocess backend.
+	BackendKimi BackendKind = "kimi"
+	// BackendAgy is the Antigravity CLI headless subprocess backend.
+	BackendAgy BackendKind = "agy"
 )
 
 // BackendInfo describes a backend's static identity. The session manager

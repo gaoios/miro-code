@@ -764,9 +764,9 @@ func handleServer(args []string) {
 			Mode           string   `json:"mode"`         // "weiran"|"benwo"|"cc"; overrides legacy bools when set
 			SpawnedBy      string   `json:"spawned_by"`   // parent session ID
 			// Backend selects the harness implementation: "cc" (default,
-			// Claude Code stream-json) or "codex" (OpenAI codex JSON-RPC,
-			// Round 4). Empty triggers resolveBackendKind which auto-routes
-			// based on model prefix / agents.codex.model_map.
+			// Claude Code stream-json), "codex" (OpenAI codex JSON-RPC), or
+			// "grok" (Grok Build headless). Empty triggers resolveBackendKind
+			// which auto-routes based on model prefix / backend model_map.
 			Backend string `json:"backend"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -805,11 +805,6 @@ func handleServer(args []string) {
 			}
 		}
 
-		model := req.Model
-		if model == "" && (req.Category == "" || req.Category == CategoryInteractive) {
-			model = cfg.DefaultInteractiveModel
-		}
-
 		// Backend kind: explicit body field wins; empty → auto-route by model.
 		// Validate the explicit value so a typo doesn't silently fall back.
 		var backendKind BackendKind
@@ -827,12 +822,38 @@ func handleServer(args []string) {
 				return
 			}
 			backendKind = BackendCodex
+		case string(BackendGrok), "grok-build":
+			if !grokEnabled {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error": "backend=grok requested but agents.grok.enabled=false in config.json",
+				})
+				return
+			}
+			backendKind = BackendGrok
+		case string(BackendKimi), "kimi-cli", "moonshot-kimi":
+			if !kimiEnabled {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error": "backend=kimi requested but agents.kimi.enabled=false in config.json",
+				})
+				return
+			}
+			backendKind = BackendKimi
+		case string(BackendAgy), "antigravity", "antigravity-cli":
+			if !agyEnabled {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error": "backend=agy requested but agents.agy.enabled=false in config.json",
+				})
+				return
+			}
+			backendKind = BackendAgy
 		default:
 			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": fmt.Sprintf("unknown backend %q (expected cc|codex|auto)", req.Backend),
+				"error": fmt.Sprintf("unknown backend %q (expected cc|codex|grok|kimi|agy|auto)", req.Backend),
 			})
 			return
 		}
+
+		model := resolveCreateModel(req.Model, req.Category, backendKind, cfg.DefaultInteractiveModel)
 
 		sess, err := sm.createSessionWithOpts(sessionCreateOpts{
 			Name:           req.Name,
@@ -2465,11 +2486,13 @@ func handleServer(args []string) {
 	}
 	renderedIndex = strings.ReplaceAll(renderedIndex, "{{.TmuxDrawerHideCSS}}", tmuxDrawerHideCSS)
 	renderedIndex = strings.ReplaceAll(renderedIndex, "{{.DisableTmuxDrawer}}", fmt.Sprintf("%t", cfg.DisableTmuxDrawer))
-	// Codex backend availability — drives the New Session sheet's Backend
-	// radio group. False hides the selector entirely; true shows the
-	// auto/cc/codex segmented control. Mirrors codexEnabled package var
-	// (loaded from agents.codex.enabled in config.json).
+	// Alternate backend availability — drives the New Session sheet's Backend
+	// radio group. The selector appears when at least one alternate backend is
+	// enabled; individual backend choices are hidden independently.
 	renderedIndex = strings.ReplaceAll(renderedIndex, "{{.CodexEnabled}}", fmt.Sprintf("%t", codexEnabled))
+	renderedIndex = strings.ReplaceAll(renderedIndex, "{{.GrokEnabled}}", fmt.Sprintf("%t", grokEnabled))
+	renderedIndex = strings.ReplaceAll(renderedIndex, "{{.KimiEnabled}}", fmt.Sprintf("%t", kimiEnabled))
+	renderedIndex = strings.ReplaceAll(renderedIndex, "{{.AgyEnabled}}", fmt.Sprintf("%t", agyEnabled))
 	renderedIndexBytes := []byte(renderedIndex)
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

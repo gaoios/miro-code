@@ -422,6 +422,12 @@
       <label for="m-backend-cc">CC<span class="mode-hint">Claude Code stream-json</span></label>
       <input type="radio" name="m-backend" id="m-backend-codex" value="codex">
       <label for="m-backend-codex">Codex<span class="mode-hint">OpenAI app-server JSON-RPC</span></label>
+      <input type="radio" name="m-backend" id="m-backend-grok" value="grok">
+      <label for="m-backend-grok">Grok<span class="mode-hint">Grok Build headless</span></label>
+      <input type="radio" name="m-backend" id="m-backend-kimi" value="kimi">
+      <label for="m-backend-kimi">Kimi<span class="mode-hint">Kimi CLI print worker</span></label>
+      <input type="radio" name="m-backend" id="m-backend-agy" value="agy">
+      <label for="m-backend-agy">Agy<span class="mode-hint">Antigravity Gemini worker</span></label>
     </div>
   </div>
   <div class="actions">
@@ -488,7 +494,7 @@
 'use strict';
 
 // ── Server-injected config ──
-const SERVER_CONFIG = {defaultReplaceSoul: {{.DefaultReplaceSoul}}, defaultInteractiveModel: "{{.DefaultInteractiveModel}}", disableTmuxDrawer: {{.DisableTmuxDrawer}}, codexEnabled: {{.CodexEnabled}}};
+const SERVER_CONFIG = {defaultReplaceSoul: {{.DefaultReplaceSoul}}, defaultInteractiveModel: "{{.DefaultInteractiveModel}}", disableTmuxDrawer: {{.DisableTmuxDrawer}}, codexEnabled: {{.CodexEnabled}}, grokEnabled: {{.GrokEnabled}}, kimiEnabled: {{.KimiEnabled}}, agyEnabled: {{.AgyEnabled}}, backendSelectorEnabled: ({{.CodexEnabled}} || {{.GrokEnabled}} || {{.KimiEnabled}} || {{.AgyEnabled}})};
 
 // ── State ──
 let TOKEN = new URLSearchParams(location.search).get('token')||localStorage.getItem('weiran_token')||'';
@@ -2776,13 +2782,25 @@ function openNewSheet(){
   if(isMobile)closeSidebar();
   // Apply server-preferred default mode every open (in case it changed)
   setNewSessionMode(SERVER_CONFIG.defaultReplaceSoul?'benwo':'weiran');
-  // Show backend selector only when agents.codex.enabled in server config.
-  // Hidden by default so users without codex don't see a confusing empty toggle.
+  // Show backend selector only when at least one alternate backend is enabled.
   const beWrap=document.getElementById('backend-select-wrap');
-  if(beWrap)beWrap.style.display=SERVER_CONFIG.codexEnabled?'':'none';
+  if(beWrap)beWrap.style.display=SERVER_CONFIG.backendSelectorEnabled?'':'none';
+  setBackendOptionVisible('codex',SERVER_CONFIG.codexEnabled);
+  setBackendOptionVisible('grok',SERVER_CONFIG.grokEnabled);
+  setBackendOptionVisible('kimi',SERVER_CONFIG.kimiEnabled);
+  setBackendOptionVisible('agy',SERVER_CONFIG.agyEnabled);
   // Fetch GAL saves only when gal skill is available (easter egg)
   const galWrap=document.getElementById('gal-resume-wrap');
   if(galWrap&&galWrap.style.display!=='none')fetchGalSaves();
+}
+function setBackendOptionVisible(value,enabled){
+  const input=document.getElementById('m-backend-'+value);
+  const label=input?document.querySelector('label[for="'+input.id+'"]'):null;
+  [input,label].forEach(el=>{if(el)el.style.display=enabled?'':'none'});
+  if(input&&input.checked&&!enabled){
+    const auto=document.getElementById('m-backend-auto');
+    if(auto)auto.checked=true;
+  }
 }
 async function fetchGalSaves(){
   const sel=document.getElementById('m-gal');
@@ -3011,10 +3029,9 @@ function createSession(){
   const mode=getNewSessionMode();
   const flags=modeToFlags(mode);
   const galId=document.getElementById('m-gal').value;
-  // Backend selector lives behind SERVER_CONFIG.codexEnabled — when codex
-  // isn't configured we never read it (selector is hidden).
+  // Backend selector lives behind SERVER_CONFIG.backendSelectorEnabled.
   let backend='auto';
-  if(SERVER_CONFIG.codexEnabled){
+  if(SERVER_CONFIG.backendSelectorEnabled){
     const be=document.querySelector('input[name="m-backend"]:checked');
     if(be)backend=be.value;
   }

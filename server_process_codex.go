@@ -215,10 +215,12 @@ func handleCodexUnifiedEvent(cb *codexBackend, sess *serverSession, ev UnifiedEv
 		// Status flip before the SSE result line so any consumer that
 		// reads status when it sees "result" observes the new value.
 		sess.setStatus(newStatus)
-		// DB persistence is best-effort and runs off the bridge goroutine
-		// to keep the event loop snappy and tests deterministic. sess.ID
-		// is immutable so we can close over it directly without copying.
-		go func() { _, _ = incrementUserTurns(sess.ID) }()
+		if fullSync {
+			// DB persistence is best-effort and runs off the bridge goroutine
+			// to keep the event loop snappy. sess.ID is immutable so we can
+			// close over it directly without copying.
+			go func() { _, _ = incrementUserTurns(sess.ID) }()
+		}
 		// Emit both the typed codex event AND a CC-shaped "result" so any
 		// downstream consumer that keys off result for is_error / status
 		// keeps working.

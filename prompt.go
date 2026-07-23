@@ -241,6 +241,20 @@ func buildPrompt() buildPromptResult {
 		}
 	}
 
+	// Enabled alternate backends are workers under Claude's supervision. Keep
+	// this in the static prompt so the CEO knows their specialties and budgets
+	// without exposing backend selection as a routine user concern.
+	if dispatchRules := buildWorkerDispatchRules(); dispatchRules != "" {
+		if totalChars+len(dispatchRules) <= maxBootstrapTotalChars {
+			totalChars += len(dispatchRules)
+			secStart := b.Len()
+			b.WriteString("\n")
+			b.WriteString(dispatchRules)
+			b.WriteString("\n")
+			sections = append(sections, promptSection{name: "worker dispatch", tokens: estimateTokens(b.String()[secStart:])})
+		}
+	}
+
 	// Long-term memory index
 	if content, ok := loadFileWithBudget(filepath.Join(workspace, "MEMORY.md"), maxBootstrapFileChars); ok {
 		if totalChars+len(content) <= maxBootstrapTotalChars {
