@@ -14,6 +14,7 @@ Claude Code 每次启动都是一张白纸。不记得昨天，不知道自己�
 - **会进化** —— 每日 cron 回顾近期交互，自主微调灵魂文件
 - **保持连接** —— 重要事件通过 Telegram 主动通知
 - **自我维护** —— 心跳巡检、安全自编译、失败自动回滚
+- **多 CLI 协作** —— Claude 统一拆解和验收，Codex、Grok Build、Kimi、Antigravity 作为专业 Worker，共享 Meoo 等工具 CLI
 
 它最初是为 [OpenClaw](https://github.com/nicepkg/openclaw)（AI agent 网关）而写，但核心理念 —— 用持久上下文包裹 Claude Code —— 适用于任何想让 AI 不再只是工具的人。
 

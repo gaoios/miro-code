@@ -5,5 +5,42 @@
   "projectRoots": [
     "~/my-projects",
     "~/work"
-  ]
+  ],
+  "agents": {
+    "codex": {
+      "enabled": false,
+      "binary": "codex",
+      "model_map": {},
+      "dispatch_hint": "Use for implementation-heavy engineering tasks."
+    },
+    "grok": {
+      "enabled": false,
+      "binary": "grok",
+      "model_map": {},
+      "dispatch_hint": "Use for independent challenge and review."
+    },
+    "kimi": {
+      "enabled": false,
+      "binary": "kimi",
+      "model_map": {},
+      "dispatch_hint": "Use for frontend presentation and visual QA."
+    },
+    "agy": {
+      "enabled": false,
+      "binary": "agy",
+      "mode": "plan",
+      "effort": "low",
+      "dangerously_skip_permissions": false,
+      "model_map": {},
+      "dispatch_hint": "Use for Gemini synthesis and alternate perspectives."
+    }
+  },
+  "tools": {
+    "meoo": {
+      "enabled": false,
+      "binary": "meoo",
+      "capabilities": ["build applications", "deploy static sites"],
+      "dispatch_hint": "Enable only when the CLI is installed and authenticated."
+    }
+  }
 }

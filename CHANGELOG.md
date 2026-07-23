@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Multi-CLI Agent Workspace
+
+- Added first-class server backends for Codex, Grok Build, Kimi CLI, and
+  Antigravity CLI alongside the existing Claude Code backend.
+- Added explicit backend selection, model-prefix and `model_map` routing,
+  unified events, Web UI backend visibility, session persistence, and smoke
+  tests for alternate workers.
+- Added Claude supervisor dispatch policy with per-worker `dispatch_hint`
+  overrides. Local quota and role preferences stay in private configuration
+  instead of being hard-coded in source.
+- Added a generic `tools` registry for non-conversational CLIs shared by
+  workers. Deployment and media-generation tools such as Meoo or a compatible
+  Jimeng CLI can be described without pretending to be AI model backends.
+
 ## v1.12.0
 
 ### Tmux Drawer (Web UI)

@@ -76,6 +76,7 @@ The binary name determines identity: build as `myai`, `jarvis`, or `atlas` — a
 | **Server mode** | Built-in HTTP server + Web UI for persistent sessions |
 | **Automation** | `--cron` (memory), `--heartbeat` (health checks), `--evolve` (self-improvement) |
 | **Multi-agent** | One codebase, multiple binaries with isolated data |
+| **Multi-CLI workspace** | Claude supervisor + Codex, Grok Build, Kimi, and Antigravity workers; shared tool CLIs such as Meoo |
 | **Safety** | Symlink rejection, secret leak detection, CORE.md protection, auto-rollback |
 | **Telegram** | Notifications, reports, conversation context injection |
 
@@ -91,6 +92,25 @@ myai --heartbeat             # health check patrol
 myai --evolve                # self-improvement
 myai status                  # quick diagnostics
 ```
+
+### Multi-CLI Agent Workspace
+
+Server mode can run multiple AI CLI backends behind the same session API and
+Web UI. Claude remains the default supervisor, while enabled workers receive
+bounded tasks through `spawn --bare`:
+
+```bash
+myai server
+myai spawn --bare --backend codex --model gpt-5.5 --project "$PWD" "Implement and test the change" --wait
+myai spawn --bare --backend grok --project "$PWD" "Review the implementation independently" --wait
+```
+
+Non-conversational CLIs are registered separately under `tools`. They run in
+the same project environment but do not pretend to be model backends. This is
+the extension point for deployment, image generation, and platform CLIs such
+as Meoo or a locally installed Jimeng-compatible CLI.
+
+See [Multi-CLI Agent Workspace](docs/guides/multi-cli-workspace.md).
 
 ## Documentation
 

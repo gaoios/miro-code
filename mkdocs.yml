@@ -77,6 +77,7 @@ nav:
     - Server Mode & Web UI: guides/server.md
     - Automation (Cron / Heartbeat / Evolve): guides/automation.md
     - Multiple Agents: guides/multi-agent.md
+    - Multi-CLI Agent Workspace: guides/multi-cli-workspace.md
   - Reference:
     - Configuration: reference/configuration.md
     - CLI Commands: reference/cli.md

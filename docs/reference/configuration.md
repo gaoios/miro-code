@@ -13,6 +13,22 @@ Located at `<workspace>/scripts/<appName>/config.json` or `<appHome>/data/config
     "~/projects",
     "~/work"
   ],
+  "agents": {
+    "codex": {
+      "enabled": true,
+      "binary": "codex",
+      "model_map": {"implementation": "gpt-5.5"},
+      "dispatch_hint": "Use for implementation-heavy engineering work."
+    }
+  },
+  "tools": {
+    "meoo": {
+      "enabled": true,
+      "binary": "meoo",
+      "capabilities": ["build applications", "deploy static sites"],
+      "dispatch_hint": "Verify authentication before deployment."
+    }
+  },
   "server": {
     "token": "",
     "host": "127.0.0.1",
@@ -32,6 +48,35 @@ Located at `<workspace>/scripts/<appName>/config.json` or `<appHome>/data/config
 | `telegramChatID` | string | Telegram chat ID for notifications | `<APPNAME>_TG_CHAT_ID` |
 | `agentName` | string | Display name (defaults to binary name) | `AGENT_NAME` |
 | `projectRoots` | string[] | Directories to scan for `CLAUDE.md` files | — |
+| `agents` | object | Optional AI backend configuration | — |
+| `tools` | object | Non-conversational CLIs available to workers | — |
+
+### Agent backend fields
+
+Supported keys under `agents` are `codex`, `grok`, `kimi`, and `agy`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Enables explicit selection and model auto-routing |
+| `binary` | string | Executable name or path |
+| `model_map` | object | Local alias to backend-native model name |
+| `dispatch_hint` | string | Local quota, role, cost, or priority guidance for the supervisor |
+
+Codex additionally supports `permission_profile` and `approval_policy`.
+Antigravity additionally supports `mode` (`plan` or `accept-edits`), `effort`,
+and `dangerously_skip_permissions`. The dangerous permission flag defaults to
+`false` and should only be enabled in trusted workspaces.
+
+### Tool CLI fields
+
+Entries under `tools` are ordinary executables, not AI backends.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Advertises the tool to the supervisor prompt |
+| `binary` | string | Executable name or path |
+| `capabilities` | string[] | Short descriptions used for task routing |
+| `dispatch_hint` | string | Preconditions and usage guidance |
 
 ### Server fields
 
