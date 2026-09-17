@@ -36,6 +36,18 @@ type codexFakeServer struct {
 	// Behavior overrides.
 	skipHandshakeReply bool // if true, the server doesn't reply to initialize → tests waitInit timeout
 	failResumeOnce     bool // if true, the first thread/resume returns a JSON-RPC error (for fallback testing)
+
+	// lastThreadStart holds the decoded params of the most recent
+	// thread/start so tests can assert on the wire contract.
+	lastThreadStart map[string]any
+}
+
+// lastThreadStartParams returns the decoded params of the most recent
+// thread/start, or nil if none was seen.
+func (s *codexFakeServer) lastThreadStartParams() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastThreadStart
 }
 
 // handle services one client→server frame and returns any responses the
@@ -83,6 +95,21 @@ func (s *codexFakeServer) handle(env JSONRPCEnvelope) []JSONRPCEnvelope {
 		// Notification — no reply.
 		return nil
 	case MethodThreadStart:
+		// Mirror codex 0.153.4's contract: the typed permissionProfile object
+		// was removed from thread/start in favour of the `sandbox` enum.
+		// Reject the old field exactly as the real server does, so a
+		// regression to it fails the handshake here instead of silently in
+		// production.
+		_ = json.Unmarshal(env.Params, &s.lastThreadStart)
+		if _, bad := s.lastThreadStart["permissionProfile"]; bad {
+			return []JSONRPCEnvelope{{
+				ID: env.ID,
+				Error: &JSONRPCErrorObj{
+					Code:    -32602,
+					Message: "permissionProfile is no longer supported for thread/start; use `permissions` with a named profile id instead",
+				},
+			}}
+		}
 		s.threadID = "thr_test_" + nonceShort()
 		modelName := s.model
 		if modelName == "" {
@@ -256,53 +283,76 @@ func mustRaw(v any) json.RawMessage {
 
 // TestCodexBackendStartHappyPath verifies the full handshake completes and
 // info() reflects the server-assigned thread id.
-func TestCodexPermissionProfilePayload(t *testing.T) {
+// TestCodexSandboxMode pins the config-alias → SandboxMode mapping.
+//
+// codex 0.153.x replaced the typed `permissionProfile` object with the
+// `sandbox` enum; each alias below has to land on a value the server accepts,
+// and anything unrecognized has to ERROR rather than silently omit the field
+// (an omitted sandbox falls back to codex's read-only default, which looks
+// like a live session that cannot write — the silent-failure shape this
+// mapping exists to prevent).
+func TestCodexSandboxMode(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name, in string
-		// want is empty for nil-payload cases; otherwise the expected JSON.
-		want string
+		name, in, want string
+		wantErr        bool
 	}{
-		{"empty omits", "", ""},
-		{"workspaceWrite legacy alias → managed+unrestricted",
-			"workspaceWrite",
-			`{"type":"managed","fileSystem":{"type":"unrestricted"},"network":{"enabled":false}}`},
-		{"workspace-write kebab alias",
-			"workspace-write",
-			`{"type":"managed","fileSystem":{"type":"unrestricted"},"network":{"enabled":false}}`},
-		{"default alias matches workspaceWrite",
-			"default",
-			`{"type":"managed","fileSystem":{"type":"unrestricted"},"network":{"enabled":false}}`},
-		{"disabled → typed disabled", "disabled", `{"type":"disabled"}`},
-		{"dangerFullAccess legacy → disabled", "dangerFullAccess", `{"type":"disabled"}`},
-		{"readOnly legacy → managed+restricted-root-read",
-			"readOnly",
-			`{"type":"managed","fileSystem":{"type":"restricted","entries":[{"path":{"type":"special","value":{"kind":"root"}},"access":"read"}]},"network":{"enabled":false}}`},
-		{"raw JSON passthrough",
-			`{"type":"external","network":{"enabled":true}}`,
-			`{"type":"external","network":{"enabled":true}}`},
-		{"unknown bare string → omit", "what", ""},
+		{name: "empty omits", in: "", want: ""},
+		{name: "workspaceWrite legacy alias", in: "workspaceWrite", want: "workspace-write"},
+		{name: "workspace-write kebab alias", in: "workspace-write", want: "workspace-write"},
+		{name: "default alias matches workspaceWrite", in: "default", want: "workspace-write"},
+		{name: "readOnly legacy", in: "readOnly", want: "read-only"},
+		{name: "read-only kebab", in: "read-only", want: "read-only"},
+		{name: "dangerFullAccess legacy", in: "dangerFullAccess", want: "danger-full-access"},
+		{name: "danger-full-access kebab", in: "danger-full-access", want: "danger-full-access"},
+		{name: "disabled aliases dangerFullAccess", in: "disabled", want: "danger-full-access"},
+		{name: "surrounding whitespace tolerated", in: "  workspaceWrite\n", want: "workspace-write"},
+		{name: "unknown bare string errors", in: "what", wantErr: true},
+		{name: "old JSON literal errors with a migration hint",
+			in: `{"type":"disabled"}`, wantErr: true},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got := codexPermissionProfilePayload(tc.in)
-			if tc.want == "" {
-				if got != nil {
-					t.Fatalf("expected nil, got %s", string(got))
+			got, err := codexSandboxMode(tc.in)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got sandbox %q", got)
 				}
 				return
 			}
-			if got == nil {
-				t.Fatalf("expected payload, got nil")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
-			if !json.Valid(got) {
-				t.Fatalf("emitted invalid JSON: %s", string(got))
-			}
-			if string(got) != tc.want {
-				t.Fatalf("payload mismatch:\n want=%s\n got =%s", tc.want, string(got))
+			if got != tc.want {
+				t.Fatalf("sandbox mismatch: want %q, got %q", tc.want, got)
 			}
 		})
+	}
+}
+
+// TestCodexThreadStartSendsSandboxNotPermissionProfile guards the wire
+// contract directly: the fake server rejects `permissionProfile` the way
+// codex 0.153.4 does, so a regression to the old field fails the handshake
+// here rather than silently in production.
+func TestCodexThreadStartSendsSandboxNotPermissionProfile(t *testing.T) {
+	fs := &codexFakeServer{model: "gpt-codex-test"}
+	cb, _, closer := startCodexBackend(t, fs)
+	defer closer()
+
+	if !cb.waitInit(2 * time.Second) {
+		t.Fatalf("waitInit failed; initErr=%v", cb.initErr.Load())
+	}
+
+	params := fs.lastThreadStartParams()
+	if params == nil {
+		t.Fatal("no thread/start params captured")
+	}
+	if _, bad := params["permissionProfile"]; bad {
+		t.Errorf("thread/start must not send the removed permissionProfile field; params=%v", params)
+	}
+	if got, _ := params["sandbox"].(string); got != "workspace-write" {
+		t.Errorf("want sandbox=workspace-write, got %v (params=%v)", params["sandbox"], params)
 	}
 }
 

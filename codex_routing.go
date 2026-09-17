@@ -41,6 +41,8 @@ func resolveBackendKind(explicit BackendKind, model string) BackendKind {
 		return BackendKimi
 	case BackendAgy:
 		return BackendAgy
+	case BackendOpencode:
+		return BackendOpencode
 	case BackendCC:
 		return BackendCC
 	}
@@ -55,6 +57,9 @@ func resolveBackendKind(explicit BackendKind, model string) BackendKind {
 	}
 	if agyEnabled && isAgyModel(model) {
 		return BackendAgy
+	}
+	if opencodeEnabled && isOpencodeModel(model) {
+		return BackendOpencode
 	}
 	return BackendCC
 }
@@ -218,4 +223,38 @@ func resolveCreateModel(model, category string, backendKind BackendKind, default
 		return ""
 	}
 	return defaultInteractive
+}
+
+// isOpencodeModel reports whether a model should auto-route to opencode:
+// an "opencode/" prefix names the backend, and agents.opencode.model_map
+// keys provide UI/config aliases. Native provider/model IDs alone do not
+// select a backend, so existing provider routing stays unchanged.
+func isOpencodeModel(model string) bool {
+	if model == "" {
+		return false
+	}
+	if strings.HasPrefix(model, "opencode/") {
+		return true
+	}
+	if opencodeModelMap != nil {
+		_, ok := opencodeModelMap[model]
+		return ok
+	}
+	return false
+}
+
+// opencodeResolveModel returns the CLI's native provider/model ID. Resolution
+// order mirrors Kimi: model_map override, strip "opencode/", then pass through.
+// Map values are already native IDs (e.g. "opencode-go/deepseek-flash") and
+// must not be stripped or interpreted as Soul provider names.
+func opencodeResolveModel(model string) string {
+	if model == "" {
+		return ""
+	}
+	if opencodeModelMap != nil {
+		if mapped, ok := opencodeModelMap[model]; ok && mapped != "" {
+			return mapped
+		}
+	}
+	return strings.TrimPrefix(model, "opencode/")
 }

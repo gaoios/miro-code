@@ -846,9 +846,17 @@ func handleServer(args []string) {
 				return
 			}
 			backendKind = BackendAgy
+		case string(BackendOpencode), "opencode-cli":
+			if !opencodeEnabled {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error": "backend=opencode requested but agents.opencode.enabled=false in config.json",
+				})
+				return
+			}
+			backendKind = BackendOpencode
 		default:
 			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": fmt.Sprintf("unknown backend %q (expected cc|codex|grok|kimi|agy|auto)", req.Backend),
+				"error": fmt.Sprintf("unknown backend %q (expected cc|codex|grok|kimi|agy|opencode|auto)", req.Backend),
 			})
 			return
 		}
@@ -907,8 +915,10 @@ func handleServer(args []string) {
 			// first message routes to a *different* mode than the cwd /
 			// source did, the missing fragments get patched in immediately.
 			go func() {
-				if !sess.process.waitInit(30 * time.Second) {
-					fmt.Fprintf(os.Stderr, "[%s] server: init timeout for %s, sending initial message anyway\n", appName, shortID(sess.ID))
+				if !sess.awaitBackendReady(30 * time.Second) {
+					// Backend died during its handshake — the session is now
+					// terminal/"error" and injects nothing.
+					return
 				}
 				injection := sess.prepareSoulPatch(cleanInitial)
 				userEvent, _ := json.Marshal(map[string]any{
@@ -2150,8 +2160,8 @@ func handleServer(args []string) {
 
 		// Send heartbeat task as initial message — wait for init before writing to stdin
 		go func() {
-			if !sess.process.waitInit(30 * time.Second) {
-				fmt.Fprintf(os.Stderr, "[%s] server: wake init timeout for %s, sending task anyway\n", appName, shortID(sess.ID))
+			if !sess.awaitBackendReady(30 * time.Second) {
+				return
 			}
 			if err := sess.process.sendMessage(taskMsg); err != nil {
 				fmt.Fprintf(os.Stderr, "[%s] server: wake failed to send task: %v\n", appName, err)

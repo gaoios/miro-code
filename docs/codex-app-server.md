@@ -142,7 +142,7 @@ Response:
     "model": "gpt-5.1-codex",
     "cwd": "/Users/kiyor/.openclaw/workspace",
     "approvalPolicy": "never",
-    "permissionProfile": "managed"
+    "sandbox": "workspace-write"
   }
 }
 ```
@@ -264,11 +264,21 @@ codex app-server generate-json-schema --out tmp/codex-schema-json
 
 ## Authentication / Sandbox 选项
 
-- `permissionProfile`: `"managed"` / `"workspaceWrite"` / `"readOnly"` / `"dangerFullAccess"` / `"externalSandbox"`
-- `approvalPolicy`: `"never"` / `"unlessTrusted"` / `"untrusted"` / `"onFailure"`
-- `sandboxPolicy`: 已 deprecate，用 `permissionProfile`
+> ⚠️ **0.153.x 契约变更**：`thread/start` / `thread/resume` 的 `permissionProfile`（typed
+> 对象）已被移除，换成 **`sandbox`** 枚举。继续发旧字段会得到
+> `-32602: permissionProfile is no longer supported for thread/start;
+> use permissions with a named profile id instead` —— 且因为是握手阶段失败，
+> 后端必须把 init 错误传播成 session 失败，否则会伪装成"成功但没干活"。
 
-weiran 默认配置建议：`permissionProfile: "workspaceWrite"`, `approvalPolicy: "never"`（让 hook 全权管控）。
+- `sandbox`: `"read-only"` / `"workspace-write"` / `"danger-full-access"`（推荐字段）
+- `approvalPolicy`: `"never"` / `"unlessTrusted"` / `"untrusted"` / `"onFailure"`
+- `permissions`: 具名 profile id 字符串。**不要用** —— 它要求握手时声明
+  `experimentalApi` capability，否则报 `-32600`。soul 走 `sandbox`。
+- ~~`permissionProfile`~~: 0.153.x 起已移除
+- ~~`sandboxPolicy`~~: 已 deprecate（仅 `turn/start` 上还留着，soul 从不发送）
+
+weiran 默认配置建议：`permission_profile: "workspaceWrite"`（config key 名保留，
+在线上映射为 `sandbox: "workspace-write"`）+ `approvalPolicy: "never"`（让 hook 全权管控）。
 
 ## 与 CC stream-json 对比速查
 

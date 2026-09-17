@@ -46,6 +46,8 @@ const (
 	BackendKimi BackendKind = "kimi"
 	// BackendAgy is the Antigravity CLI headless subprocess backend.
 	BackendAgy BackendKind = "agy"
+	// BackendOpencode is the opencode CLI headless JSONL subprocess backend.
+	BackendOpencode BackendKind = "opencode"
 )
 
 // BackendInfo describes a backend's static identity. The session manager

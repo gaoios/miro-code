@@ -431,8 +431,14 @@ func (c *wsClient) handleMessage(raw []byte) {
 				return
 			}
 			backendKind = BackendAgy
+		case string(BackendOpencode), "opencode-cli":
+			if !opencodeEnabled {
+				c.sendJSON(map[string]string{"type": "error", "error": "backend=opencode requested but agents.opencode.enabled=false in config.json"})
+				return
+			}
+			backendKind = BackendOpencode
 		default:
-			c.sendJSON(map[string]string{"type": "error", "error": fmt.Sprintf("unknown backend %q (expected cc|codex|grok|kimi|agy|auto)", msg.Backend)})
+			c.sendJSON(map[string]string{"type": "error", "error": fmt.Sprintf("unknown backend %q (expected cc|codex|grok|kimi|agy|opencode|auto)", msg.Backend)})
 			return
 		}
 		model := resolveCreateModel(msg.Model, CategoryInteractive, backendKind, c.hub.defaultInteractiveModel)
@@ -463,8 +469,8 @@ func (c *wsClient) handleMessage(raw []byte) {
 			}
 			sess.mu.Unlock()
 			go func() {
-				if !sess.process.waitInit(30 * time.Second) {
-					fmt.Fprintf(os.Stderr, "[%s] ws: create: init timeout for %s, sending message anyway\n", appName, shortID(sess.ID))
+				if !sess.awaitBackendReady(30 * time.Second) {
+					return
 				}
 				// Route through prepareSoulPatch for consistency with REST.
 				// The create-time prompt build already has fragments for the

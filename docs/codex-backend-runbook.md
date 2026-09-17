@@ -29,7 +29,7 @@ debug or roll back the codex backend on a running weiran server.
 ```bash
 npm install -g @openai/codex
 which codex                        # /opt/homebrew/bin/codex on mac
-codex --version                    # codex-cli 0.125.0 or newer
+codex --version                    # codex-cli 0.153.0 or newer
 ```
 
 ### 2.2 Authenticate
@@ -89,7 +89,7 @@ startup; `weiran config` shows the resolved values):
         "codex/gpt-5.4-codex":  "gpt-5.4-codex"
       },
       "approval_policy": "never",                         // codex-side default
-      "permission_profile": ""                             // see §7
+      "permission_profile": "workspaceWrite"               // sandbox alias, see §8.5
     }
   }
 }
@@ -325,33 +325,47 @@ Audit-equivalent path: read `codex_approvals.*` from
 `/api/codex/metrics` for aggregate counts; per-rule attribution
 requires Round 6.
 
-### 8.5 `permission_profile` is a typed enum, not a string
+### 8.5 `permission_profile` maps to the `sandbox` enum
 
-Codex 0.125.0 changed `permissionProfile` from a string ("workspaceWrite",
-"disabled", …) to an internally-tagged enum:
+**Codex 0.153.x removed `permissionProfile` from `thread/start` and
+`thread/resume`.** Sending it now fails the handshake with:
 
-```jsonc
-{ "type": "managed",  "network": {...}, "fileSystem": {...} }
-{ "type": "disabled" }
-{ "type": "external", "network": {...} }
+```
+-32602: `permissionProfile` is no longer supported for `thread/start`;
+        use `permissions` with a named profile id instead
 ```
 
-`codex_backend.go runHandshake` calls `codexPermissionProfilePayload`
-which:
-
-- omits the field when value is `""`, `"default"`, or `"workspaceWrite"`
-  (so codex's own default kicks in),
-- emits `{"type":"disabled"}` when value is `"disabled"`,
-- passes any value starting with `{` through verbatim as raw JSON.
-
-Other strings are silently dropped. To set a managed profile right now,
-write the full JSON literal in `agents.codex.permission_profile`:
+We do **not** take the `permissions` route that the error suggests: it
+requires the `experimentalApi` capability to be declared during
+`initialize`, and returns `-32600` without it. The non-experimental
+replacement is the `sandbox` field, a plain enum:
 
 ```jsonc
-"permission_profile": "{\"type\":\"managed\",\"network\":{\"allowAll\":true},\"fileSystem\":{\"allowAll\":true}}"
+"workspace-write" | "read-only" | "danger-full-access"
 ```
 
-A typed config field is on the Round 6 list.
+The config key keeps its historical name, so existing
+`agents.codex.permission_profile` values keep working. `codex_backend.go`
+maps them via `codexSandboxMode`:
+
+| config value | wire `sandbox` |
+|---|---|
+| `""` | *(omitted — codex default, which is read-only)* |
+| `"default"` / `"workspaceWrite"` / `"workspace-write"` | `"workspace-write"` |
+| `"readOnly"` / `"read-only"` | `"read-only"` |
+| `"dangerFullAccess"` / `"danger-full-access"` / `"disabled"` | `"danger-full-access"` |
+
+Anything else — including the old JSON-literal form
+(`{"type":"disabled"}`), which no longer exists on the wire — **fails the
+init with a clear message** rather than being silently dropped. Silently
+omitting the field would fall back to codex's read-only default, producing
+a session that looks alive but cannot write.
+
+> **History.** This section previously documented the opposite: codex
+> 0.125.0 turned `permissionProfile` from a bare string into a typed enum,
+> and this backend emitted that object. 0.153.x then deleted the field
+> outright. Because the init error was swallowed downstream, the result was
+> a dispatch that reported success, exited 0, and did no work — see §9.4.
 
 ---
 
@@ -371,15 +385,39 @@ Fix: edit `config.json`, `agents.codex.enabled = true`, then
 Codex died before responding. Common causes:
 
 1. Binary not codex (e.g. an old one) — `codex --version` should be
-   ≥ 0.125.0 for the current protocol.
+   ≥ 0.153.0 for the current protocol (see §8.5 for the breaking change).
 2. Crashed at startup. Reproduce with the smoke script — it dumps the
    last 20 lines of codex stderr on failure.
 
-### 9.3 `failInit("thread/start", "invalid type: string ...")`
+### 9.3 `failInit("thread/start", "-32602 ... permissionProfile ...")`
 
-Codex's `thread/start` validator rejected one of our typed fields.
-Most common: `permissionProfile` set to a bare string (see §8.5).
-Fix: leave the value empty in config, or set it to a JSON literal.
+Codex's `thread/start` validator rejected the permission field. This is
+the 0.153.x contract change — see §8.5. It should not be possible on a
+current build (the backend sends `sandbox`); if you see it, you are
+running a stale binary.
+
+### 9.4 A codex spawn "succeeds" but does no work
+
+Symptoms: `soul spawn --bare --backend codex … --wait` prints
+`session completed` and exits **0**, but `server_sessions.user_turns`
+stays 0 and `~/.codex/sessions` gains no entry.
+
+This was a real bug, fixed in three places — if it recurs, check each:
+
+1. **Backend handshake.** An init failure must set `initErr` *and* the
+   session must go terminal. `watchCodexExit` maps `initErr` → status
+   `error`.
+2. **Message injection.** Call sites used to call `process.waitInit`
+   directly and could not tell "slow" from "dead", so they wrote the first
+   message into a dead process and logged the failure. They now go through
+   `serverSession.awaitBackendReady`, which returns false (and marks the
+   session `error`) when `alive()` is false.
+3. **CLI exit code.** `/api/sessions/{id}/wait` returns HTTP 200 for every
+   terminal state, including `error`, so the CLI must inspect the body.
+   `spawn.go waitSession` now fails the run on `status == "error"`.
+
+Diagnose with the server log — a handshake failure logs the raw JSON-RPC
+error verbatim.
 
 ### 9.4 Approvals never resolve (turn hangs at "thinking" indefinitely)
 
@@ -475,5 +513,5 @@ Tracked here for the next person who touches this code:
 - [ ] Codex into the fallback model chain — `watchCodexExit` calls `tryNextFallback` on rate-limit.
 - [ ] Front-end renderer for `codex_*` SSE events.
 - [ ] `tool_hook_audit` write from `evaluateToolHookForApproval` (currently CC-only).
-- [ ] Typed `permission_profile` config field (object, not string with JSON-escape).
+- [x] `permission_profile` → `sandbox` enum migration (§8.5). Values are plain aliases now; no JSON-escape needed.
 - [ ] Prometheus `/metrics` endpoint exposing the codex counters in standard exposition format.

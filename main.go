@@ -157,6 +157,12 @@ var (
 	agyEffort                     string
 	agyDangerouslySkipPermissions bool
 
+	// opencode CLI headless one-shot backend config.
+	opencodeEnabled      bool
+	opencodeBinary       string
+	opencodeModelMap     map[string]string
+	opencodeDispatchHint string
+
 	// Non-conversational CLIs available to workers in the shared environment.
 	toolCLIs map[string]toolCLIConfig
 
@@ -437,7 +443,7 @@ func loadConfig() {
 		Enabled           bool              `json:"enabled"`            // master switch
 		Binary            string            `json:"binary"`             // path to codex binary; default "codex" via PATH
 		ModelMap          map[string]string `json:"model_map"`          // weiran model name → codex model name
-		PermissionProfile string            `json:"permission_profile"` // codex permission profile (default "workspaceWrite")
+		PermissionProfile string            `json:"permission_profile"` // sandbox alias (default "workspaceWrite" → sandbox "workspace-write"; also "readOnly", "dangerFullAccess")
 		ApprovalPolicy    string            `json:"approval_policy"`    // codex approval policy (default "never")
 		DispatchHint      string            `json:"dispatch_hint"`
 	}
@@ -462,11 +468,18 @@ func loadConfig() {
 		Effort                     string            `json:"effort"`
 		DangerouslySkipPermissions bool              `json:"dangerously_skip_permissions"`
 	}
+	type opencodeBlock struct {
+		Enabled      bool              `json:"enabled"`
+		Binary       string            `json:"binary"`
+		ModelMap     map[string]string `json:"model_map"`
+		DispatchHint string            `json:"dispatch_hint"`
+	}
 	type agentsBlock struct {
-		Codex codexBlock `json:"codex"`
-		Grok  grokBlock  `json:"grok"`
-		Kimi  kimiBlock  `json:"kimi"`
-		Agy   agyBlock   `json:"agy"`
+		Codex    codexBlock    `json:"codex"`
+		Grok     grokBlock     `json:"grok"`
+		Kimi     kimiBlock     `json:"kimi"`
+		Agy      agyBlock      `json:"agy"`
+		Opencode opencodeBlock `json:"opencode"`
 	}
 	type appConfig struct {
 		JiraToken             string                   `json:"jiraToken"`
@@ -645,6 +658,15 @@ func loadConfig() {
 		agyEffort = "low"
 	}
 	agyDangerouslySkipPermissions = cfg.Agents.Agy.DangerouslySkipPermissions
+
+	// agents.opencode.* — opencode CLI headless backend config. Disabled by default.
+	opencodeEnabled = cfg.Agents.Opencode.Enabled
+	opencodeBinary = cfg.Agents.Opencode.Binary
+	if opencodeBinary == "" {
+		opencodeBinary = "opencode"
+	}
+	opencodeModelMap = cfg.Agents.Opencode.ModelMap
+	opencodeDispatchHint = cfg.Agents.Opencode.DispatchHint
 
 	toolCLIs = cfg.Tools
 }

@@ -138,13 +138,18 @@ type CodexInitializeResponse struct {
 // CodexThreadStartParams kicks off a fresh thread. Required fields are
 // minimal — we only need Cwd and Model — because every other knob has a
 // reasonable server-side default. weiran sets ApprovalPolicy="never" and
-// PermissionProfile="workspaceWrite" so the hook layer can govern approvals.
+// Sandbox="workspace-write" so the hook layer can govern approvals.
+//
+// Sandbox is a SandboxMode enum ("read-only" | "workspace-write" |
+// "danger-full-access"). It replaced the old PermissionProfile object in
+// codex 0.153.x; passing permissionProfile now fails with
+// -32602 "no longer supported for thread/start".
 type CodexThreadStartParams struct {
 	Model              string                 `json:"model,omitempty"`
 	ModelProvider      string                 `json:"modelProvider,omitempty"`
 	Cwd                string                 `json:"cwd,omitempty"`
 	ApprovalPolicy     string                 `json:"approvalPolicy,omitempty"`
-	PermissionProfile  string                 `json:"permissionProfile,omitempty"`
+	Sandbox            string                 `json:"sandbox,omitempty"`
 	BaseInstructions   string                 `json:"baseInstructions,omitempty"`
 	DeveloperInstructions string              `json:"developerInstructions,omitempty"`
 	Config             map[string]any         `json:"config,omitempty"`
@@ -177,7 +182,7 @@ type CodexThreadResumeParams struct {
 	ModelProvider       string         `json:"modelProvider,omitempty"`
 	Cwd                 string         `json:"cwd,omitempty"`
 	ApprovalPolicy      string         `json:"approvalPolicy,omitempty"`
-	PermissionProfile   string         `json:"permissionProfile,omitempty"`
+	Sandbox             string         `json:"sandbox,omitempty"`
 	BaseInstructions    string         `json:"baseInstructions,omitempty"`
 	DeveloperInstructions string       `json:"developerInstructions,omitempty"`
 	Config              map[string]any `json:"config,omitempty"`
@@ -253,13 +258,15 @@ type CodexThreadStatus struct {
 // CodexTurnStartParams starts a new turn on an existing thread by feeding
 // the model a fresh user input. Most fields override thread-level defaults
 // for just this turn.
+//
+// There is no permission/sandbox field here on purpose: a turn inherits the
+// thread-level Sandbox set at thread/start. TurnStartParams does still expose
+// a deprecated `sandboxPolicy` object, but we never send it.
 type CodexTurnStartParams struct {
 	ThreadID         string           `json:"threadId"`
 	Input            []CodexUserInput `json:"input"`
 	Cwd              string           `json:"cwd,omitempty"`
 	ApprovalPolicy   string           `json:"approvalPolicy,omitempty"`
-	SandboxPolicy    json.RawMessage  `json:"sandboxPolicy,omitempty"`
-	PermissionProfile string          `json:"permissionProfile,omitempty"`
 	Model            string           `json:"model,omitempty"`
 	Effort           string           `json:"effort,omitempty"`
 	Summary          string           `json:"summary,omitempty"`

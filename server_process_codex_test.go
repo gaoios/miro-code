@@ -605,6 +605,61 @@ func TestAttachCodexBridge_DeltaThenCompleteSkipsDuplicateAssistant(t *testing.T
 	}
 }
 
+// TestAwaitBackendReadyDistinguishesDeathFromSlowInit covers the failure mode
+// that used to be swallowed. waitInit returns false both when a backend is
+// merely slow and when it has already died, and every "inject the first
+// message" call site treated the two identically: the message went to a dead
+// process, the write failed, the goroutine logged and returned, and the
+// session stayed non-terminal until the CLI reported it as a completed run.
+// A codex handshake that failed on a removed protocol field therefore looked
+// exactly like a successful dispatch that did no work.
+func TestAwaitBackendReadyDistinguishesDeathFromSlowInit(t *testing.T) {
+	newSession := func(t *testing.T, id string) (*serverSession, *codexBackend) {
+		t.Helper()
+		// Sandbox appDir so any JSONL write stays out of the real data dir.
+		origAppDir := appDir
+		appDir = t.TempDir()
+		t.Cleanup(func() { appDir = origAppDir })
+
+		sess := &serverSession{ID: id, broadcaster: newBroadcaster(), Backend: BackendCodex}
+		cb := newCodexBackend(SessionOpts{Model: "gpt-test"})
+		sess.process = cb
+		return sess, cb
+	}
+
+	t.Run("dead backend is not ready and fails the session", func(t *testing.T) {
+		sess, cb := newSession(t, "dead-session")
+		cb.markDone() // process exited mid-handshake
+
+		if sess.awaitBackendReady(200 * time.Millisecond) {
+			t.Fatal("awaitBackendReady reported ready for a dead backend")
+		}
+		sess.mu.Lock()
+		got := sess.Status
+		sess.mu.Unlock()
+		if got != "error" {
+			t.Fatalf("dead backend must leave the session terminal; want status %q, got %q", "error", got)
+		}
+	})
+
+	t.Run("slow but alive backend is still ready", func(t *testing.T) {
+		sess, cb := newSession(t, "slow-session")
+		// Never signals init and never exits: waitInit times out while
+		// alive() stays true. Dropping the first message here would be wrong.
+		t.Cleanup(cb.markDone)
+
+		if !sess.awaitBackendReady(100 * time.Millisecond) {
+			t.Fatal("awaitBackendReady reported not-ready for a live backend that was merely slow")
+		}
+		sess.mu.Lock()
+		got := sess.Status
+		sess.mu.Unlock()
+		if got == "error" {
+			t.Fatalf("a slow-but-alive backend must not fail the session, got status %q", got)
+		}
+	})
+}
+
 func eventNames(evs []sseEvent) []string {
 	out := make([]string, len(evs))
 	for i, e := range evs {

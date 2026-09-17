@@ -63,6 +63,10 @@ Supported keys under `agents` are `codex`, `grok`, `kimi`, and `agy`.
 | `dispatch_hint` | string | Local quota, role, cost, or priority guidance for the supervisor |
 
 Codex additionally supports `permission_profile` and `approval_policy`.
+`permission_profile` accepts `"workspaceWrite"` (default, maps to
+`sandbox: "workspace-write"`), `"readOnly"`, or `"dangerFullAccess"`; see
+[codex-backend-runbook.md §8.5](../codex-backend-runbook.md) for the wire
+mapping and the codex 0.153.x protocol change.
 Antigravity additionally supports `mode` (`plan` or `accept-edits`), `effort`,
 and `dangerously_skip_permissions`. The dangerous permission flag defaults to
 `false` and should only be enabled in trusted workspaces.

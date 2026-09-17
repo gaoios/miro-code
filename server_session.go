@@ -370,6 +370,52 @@ func (s *serverSession) setStatus(status string) {
 	}
 }
 
+// awaitBackendReady blocks until the backend can accept a user turn and
+// reports whether it is safe to send one. Every "inject the first message
+// after init" path should route through here instead of calling
+// process.waitInit directly.
+//
+// Three outcomes:
+//
+//   - init completed              → ready (true)
+//   - init timed out, still alive → ready (true), with a loud log line. A slow
+//     provider is not a reason to drop the user's first message.
+//   - backend not alive after init → NOT ready (false), and the session is
+//     forced into the terminal "error" status. Covers both a dead process and
+//     a handshake the backend deliberately aborted (e.g. codex rejecting the
+//     thread/start params).
+//
+// The third case is the one that used to be swallowed. waitInit returns false
+// both for "too slow" and for "already dead", callers treated the two the
+// same, and the message went to a dead process: the write failed, the
+// goroutine logged and returned, and the session sat there with a
+// non-terminal status until it was reported as a completed run. A backend
+// whose handshake fails (bad protocol field, auth error, missing binary)
+// therefore produced a dispatched task that did no work and reported success.
+func (s *serverSession) awaitBackendReady(timeout time.Duration) bool {
+	proc := s.process
+	if proc == nil {
+		return false
+	}
+	if proc.waitInit(timeout) {
+		return true
+	}
+	if !proc.alive() {
+		// Either the process died, or it aborted the handshake and deliberately
+		// marked itself done (e.g. codex rejecting thread/start params). Both
+		// mean no work can happen; the backend logged the cause at init time.
+		fmt.Fprintf(os.Stderr, "[%s] server: backend for %s failed to initialize; not sending initial message (see log above for the cause)\n", appName, shortID(s.ID))
+		s.setStatus("error")
+		// setStatus is in-memory only. Persist too: rehydration restores rows
+		// with status IN ('active','suspended'), so a failed session left
+		// "active" in the DB would be resurrected on the next server restart.
+		updateSessionStatus(s.ID, "error")
+		return false
+	}
+	fmt.Fprintf(os.Stderr, "[%s] server: init timeout for %s, sending initial message anyway\n", appName, shortID(s.ID))
+	return true
+}
+
 // snapshot returns a JSON-safe copy of session state.
 // NOTE: To avoid deadlocks, DB queries and broadcaster calls are done OUTSIDE
 // sess.mu. Lock ordering: sess.mu must never be held when acquiring broadcaster.mu
@@ -700,8 +746,7 @@ func retryWithFallbackModel(sm *sessionManager, oldSess *serverSession, model st
 	}
 	if taskMsg != "" && resumeID == "" {
 		go func() {
-			if !sess.process.waitInit(30 * time.Second) {
-				fmt.Fprintf(os.Stderr, "[%s] server: fallback session init timeout for %s\n", appName, shortID(sess.ID))
+			if !sess.awaitBackendReady(30 * time.Second) {
 				return
 			}
 			if err := sess.process.sendMessage(taskMsg); err != nil {
@@ -1277,6 +1322,14 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 		}
 		proc = ab
 		recordBackendStart(BackendAgy)
+	case BackendOpencode:
+		ob, err := spawnOpencode(spawnOpts)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("spawn opencode: %w", err)
+		}
+		proc = ob
+		recordBackendStart(BackendOpencode)
 	default:
 		ccb, err := spawnClaude(spawnOpts)
 		if err != nil {
@@ -1337,6 +1390,8 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 		attachKimiBridge(p, sess, "server-create", true)
 	case *agyBackend:
 		attachAgyBridge(p, sess, "server-create", true)
+	case *opencodeBackend:
+		attachOpencodeBridge(p, sess, "server-create", true)
 	case *claudeBackend:
 		attachProcessBridge(p, sess, "server-create", true)
 	default:
@@ -2077,26 +2132,32 @@ func (sm *sessionManager) resumeSession(inputID, message, displayName, categoryO
 			}
 			sess.mu.Unlock()
 		}
-		if !proc.waitInit(30 * time.Second) {
-			fmt.Fprintf(os.Stderr, "[%s] server: init timeout for resume %s, sending message anyway\n", appName, shortID(sess.ID))
-		}
-		// Use resume-only variant: skip topic fragment detection so
-		// infrastructure messages (restart notices) don't trigger injection.
-		injection := sess.prepareSoulPatchResumeOnly(message)
-		userEvent, _ := json.Marshal(map[string]any{
-			"type":    "user",
-			"message": map[string]any{"role": "user", "content": injection.DisplayMessage},
-		})
-		sess.broadcaster.broadcast(sseEvent{Event: "user", Data: userEvent})
-		// Log sendMessage failures instead of silently dropping them. A
-		// silent drop on an auto-wake makes it look like resume succeeded
-		// while CC actually never received the ping — masking whether the
-		// underlying "resume self-exits" bug is still present.
-		if err := proc.sendMessage(injection.Outbound); err != nil {
-			fmt.Fprintf(os.Stderr, "[%s] server: resume sendMessage failed weiran=%s auto_wake=%v err=%v\n",
-				appName, shortID(sess.ID), autoWoken, err)
+		// A backend that died during its handshake cannot accept this
+		// message: delivering it is a no-op that leaves the resume looking
+		// successful while nothing was ever sent. awaitBackendReady marks the
+		// session terminal/"error" in that case, and we skip the injection.
+		if sess.awaitBackendReady(30 * time.Second) {
+			// Use resume-only variant: skip topic fragment detection so
+			// infrastructure messages (restart notices) don't trigger injection.
+			injection := sess.prepareSoulPatchResumeOnly(message)
+			userEvent, _ := json.Marshal(map[string]any{
+				"type":    "user",
+				"message": map[string]any{"role": "user", "content": injection.DisplayMessage},
+			})
+			sess.broadcaster.broadcast(sseEvent{Event: "user", Data: userEvent})
+			// Log sendMessage failures instead of silently dropping them. A
+			// silent drop on an auto-wake makes it look like resume succeeded
+			// while CC actually never received the ping — masking whether the
+			// underlying "resume self-exits" bug is still present.
+			if err := proc.sendMessage(injection.Outbound); err != nil {
+				fmt.Fprintf(os.Stderr, "[%s] server: resume sendMessage failed weiran=%s auto_wake=%v err=%v\n",
+					appName, shortID(sess.ID), autoWoken, err)
+			} else {
+				sess.commitSoulPatchInjection(injection)
+			}
 		} else {
-			sess.commitSoulPatchInjection(injection)
+			fmt.Fprintf(os.Stderr, "[%s] server: resume %s skipped message — backend failed to initialize\n",
+				appName, shortID(sess.ID))
 		}
 	}
 	if autoWoken {

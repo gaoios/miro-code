@@ -9,7 +9,7 @@ import (
 // enabled workers. It is deliberately capability- and budget-aware: enabling a
 // backend does not mean every task should be sent to it.
 func buildWorkerDispatchRules() string {
-	if !codexEnabled && !grokEnabled && !kimiEnabled && !agyEnabled && !hasEnabledToolCLI() {
+	if !codexEnabled && !grokEnabled && !kimiEnabled && !agyEnabled && !opencodeEnabled && !hasEnabledToolCLI() {
 		return ""
 	}
 
@@ -33,6 +33,9 @@ Worker tasks use the running Soul server:
 	}
 	if agyEnabled {
 		writeWorkerRule(&b, "- **Antigravity / Gemini 3.1 Pro — synthesis and alternate-perspective specialist**: use native model `gemini-3.1-pro-low` for long-context synthesis, comparing competing plans, organizing research, analyzing multimodal or Google-ecosystem material, and producing an independent alternative perspective. Invoke with `soul spawn --bare --backend agy --model gemini-3.1-pro-low ...`.", agyDispatchHint)
+	}
+	if opencodeEnabled {
+		writeWorkerRule(&b, "- **opencode — DeepSeek-backed execution and verification worker**: use for bounded implementation, test execution, and independent verification when its capability and budget fit the task. Invoke with `soul spawn --bare --backend opencode --model opencode-go/deepseek-flash ...`; model_map values are native provider/model IDs and pass through unchanged.", opencodeDispatchHint)
 	}
 	writeToolCLIRules(&b)
 	b.WriteString("\nDefault routing: Claude analyzes and decomposes the request; implementation goes to the best enabled engineering worker; Kimi K3 takes visually demanding frontend presentation; Antigravity provides Gemini synthesis or an alternate perspective; Grok checks risks when an independent challenge is useful; Claude integrates and accepts the final result. A tool CLI is not a conversational worker: assign the task to a worker and explicitly tell that worker which registered tool to invoke.\n")

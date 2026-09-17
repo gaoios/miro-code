@@ -717,9 +717,8 @@ func triggerFallback(sm *sessionManager, fc fallbackContext) string {
 
 	// Send initial message after Claude finishes init handshake.
 	go func() {
-		if !sess.process.waitInit(30 * time.Second) {
-			fmt.Fprintf(os.Stderr, "[%s] webhook: fallback %s init timeout, sending anyway\n",
-				appName, shortID(sess.ID))
+		if !sess.awaitBackendReady(30 * time.Second) {
+			return
 		}
 		injection := sess.prepareSoulPatch(cleanInitial)
 		userEvent, _ := json.Marshal(map[string]any{

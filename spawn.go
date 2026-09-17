@@ -176,7 +176,7 @@ func handleSpawn(args []string) {
 				bareProject = args[i]
 			}
 		case "--backend":
-			// Round 4: opt into the codex backend (or pin cc explicitly).
+			// Select an alternate backend (codex/grok/kimi/agy/opencode), or pin cc.
 			// Empty / "auto" lets the server auto-route by model.
 			if i+1 < len(args) {
 				i++
@@ -229,7 +229,7 @@ func handleSpawn(args []string) {
 		}
 		fmt.Fprintf(os.Stderr, "usage: %s spawn <agent> \"task\" [--wait]\n", appName)
 		fmt.Fprintf(os.Stderr, "       %s spawn --self main \"task\" [--wait] [--model <model>]  — spawn with own soul\n", appName)
-		fmt.Fprintf(os.Stderr, "       %s spawn --bare --model <model> --project <path> [--backend cc|codex|grok|kimi|agy|auto] \"task\" [--wait]\n", appName)
+		fmt.Fprintf(os.Stderr, "       %s spawn --bare --model <model> --project <path> [--backend cc|codex|grok|kimi|agy|opencode|auto] \"task\" [--wait]\n", appName)
 		fmt.Fprintf(os.Stderr, "       %s spawn list          — show recent spawns\n", appName)
 		fmt.Fprintf(os.Stderr, "       %s spawn log <id>      — view spawn output\n\n", appName)
 		fmt.Fprintln(os.Stderr, "Available agents:")
@@ -857,6 +857,13 @@ func (api *serverAPI) createSession(payload map[string]interface{}) (*sessionRes
 
 // waitSession blocks until the session becomes idle or times out.
 // Client timeout (11min) > server timeout (10min) to avoid premature disconnect.
+//
+// The wait endpoint answers 200 for every terminal state — success and failure
+// alike — so the body has to be inspected. A session whose backend died during
+// its handshake lands in status "error"; reporting that as a completed run
+// makes a dead worker indistinguishable from a successful dispatch, which is
+// exactly how a broken codex backend stayed invisible while silently doing
+// no work. Treat "error" as a failed wait so the caller exits non-zero.
 func (api *serverAPI) waitSession(sessionID string) error {
 	waitClient := &http.Client{Timeout: 11 * time.Minute}
 	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/sessions/%s/wait?timeout=600s", api.addr, sessionID), nil)
@@ -867,9 +874,21 @@ func (api *serverAPI) waitSession(sessionID string) error {
 		return fmt.Errorf("wait: %w", err)
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("wait returned %d: %s", resp.StatusCode, string(body))
+	}
+	var st struct {
+		Status   string `json:"status"`
+		NumTurns int    `json:"num_turns"`
+		Timeout  bool   `json:"timeout"`
+	}
+	if err := json.Unmarshal(body, &st); err != nil {
+		// Unknown shape (older/newer server) — don't fail a run over it.
+		return nil
+	}
+	if st.Status == "error" {
+		return fmt.Errorf("session %s failed: backend error after %d turn(s) — check the server log for the underlying cause", sessionID, st.NumTurns)
 	}
 	return nil
 }
@@ -879,10 +898,10 @@ func (api *serverAPI) waitSession(sessionID string) error {
 //
 // backend (Round 4) is forwarded as the "backend" body field. Empty / "auto"
 // lets the server auto-route by model; "cc" pins Claude Code; "codex" pins
-// the OpenAI codex JSON-RPC backend; "grok" pins Grok Build headless.
+// the OpenAI codex JSON-RPC backend; grok/kimi/agy/opencode pin their headless CLIs.
 func resolveSpawnModel(model, backend string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(backend)) {
-	case "codex", "grok", "kimi", "agy":
+	case "codex", "grok", "kimi", "agy", "opencode":
 		return model, nil
 	default:
 		return resolveFuzzyModel(model)

@@ -97,6 +97,10 @@ const (
 	// this up). For Round 3 the codex side default-declines anything that
 	// would otherwise prompt, so we won't see real approvals fire unless a
 	// caller forces a tool that needs one.
+	//
+	// The name is retained for config compatibility (agents.codex.
+	// permission_profile); on the wire it maps to sandbox:"workspace-write"
+	// via codexSandboxMode.
 	codexDefaultPermissionProfile = "workspaceWrite"
 	codexDefaultApprovalPolicy    = "never"
 )
@@ -545,16 +549,13 @@ func (cb *codexBackend) runHandshake() {
 	}
 
 	// Build thread/start (or thread/resume) params via map[string]any so we
-	// can selectively include permissionProfile only when it's a typed
-	// object — codex 0.125.0+ rejects bare strings like "workspaceWrite"
-	// with "expected internally tagged enum PermissionProfile".
-	// codexPermissionProfilePayload() translates the legacy aliases
-	// ("workspaceWrite" / "readOnly" / "dangerFullAccess") into the
-	// v2 enum JSON. The default (codexDefaultPermissionProfile =
-	// "workspaceWrite") now emits a managed+unrestricted profile so the
-	// hook layer is the only gatekeeper. Users who want something custom
-	// can set agents.codex.permission_profile to a JSON literal like
-	// '{"type":"disabled"}'.
+	// can selectively include the sandbox knob only when it resolves.
+	// codexSandboxMode() translates the config aliases ("workspaceWrite" /
+	// "readOnly" / "dangerFullAccess") into the SandboxMode enum that codex
+	// 0.153.x expects. The default (codexDefaultPermissionProfile =
+	// "workspaceWrite") maps to "workspace-write". Note the field is
+	// `sandbox`, not the old `permissionProfile` object — see
+	// codexSandboxMode's doc comment for the protocol history.
 	params := map[string]any{
 		"model":          cb.model,
 		"cwd":            cb.cwd,
@@ -596,17 +597,13 @@ func (cb *codexBackend) runHandshake() {
 		// session bridge replays its own JSONL log to the UI on rehydrate.
 		params["excludeTurns"] = true
 	}
-	if pp := codexPermissionProfilePayload(cb.permissionProfile); pp != nil {
-		// Validate JSON syntax up front so an operator typo (e.g. missing
-		// quote) surfaces with our own error message linking back to the
-		// runbook, rather than as a confusing "invalid type" from codex.
-		if !json.Valid(pp) {
-			cb.failInit(method, fmt.Sprintf(
-				"agents.codex.permission_profile is not valid JSON: %q (see docs/codex-backend-runbook.md)",
-				cb.permissionProfile))
-			return
-		}
-		params["permissionProfile"] = pp
+	sandbox, sandboxErr := codexSandboxMode(cb.permissionProfile)
+	if sandboxErr != nil {
+		cb.failInit(method, sandboxErr.Error())
+		return
+	}
+	if sandbox != "" {
+		params["sandbox"] = sandbox
 	}
 	raw, err := cb.client.Call(ctx, method, params)
 	if err != nil {
@@ -666,53 +663,59 @@ func (cb *codexBackend) runHandshake() {
 	}
 }
 
-// codexPermissionProfilePayload converts a string value (from
-// agents.codex.permission_profile) into the typed object codex's
-// thread/start expects (PermissionProfile enum, codex 0.125.0+).
+// codexSandboxMode converts a string value (from
+// agents.codex.permission_profile) into the SandboxMode enum that codex's
+// thread/start and thread/resume expect.
 //
-// Recognized legacy strings (v2 schema mappings):
+// codex 0.153.x replaced the typed `permissionProfile` object with a plain
+// `sandbox` enum. Sending `permissionProfile` now fails the handshake with
+// -32602 "permissionProfile is no longer supported for thread/start; use
+// `permissions` with a named profile id instead" — which, because the init
+// error used to be swallowed, silently produced a session that did no work
+// and still reported success.
 //
-//   - ""                              → nil (omit; codex uses its own default,
-//     which is a restricted read-only sandbox — session will appear "stuck"
-//     when trying to write files. Set explicitly to avoid surprise.)
-//   - "default" / "workspaceWrite" / "workspace-write" → managed + unrestricted FS + network off
-//     (matches the runbook recommendation: weiran's hook layer is the
-//     gatekeeper, so codex's outer sandbox is redundant for write access)
-//   - "readOnly" / "read-only"        → managed + restricted root:read + network off
-//   - "dangerFullAccess" / "danger-full-access" → disabled (no outer sandbox)
-//   - "disabled"                      → disabled
-//   - "{...}"                         → raw JSON, used as-is
+// We deliberately do NOT take the `permissions` (named-profile) route that
+// the error message suggests: it requires the experimentalApi capability,
+// which our handshake does not request, and fails with -32600 without it.
+// `sandbox` is the non-experimental field and is accepted by both
+// thread/start and thread/resume.
 //
-// Anything else is silently dropped to nil; the runbook calls this out.
-// Returns json.RawMessage so it round-trips through the map[string]any
-// without re-encoding.
-func codexPermissionProfilePayload(name string) json.RawMessage {
+// Recognized aliases (the config key keeps its historical name so existing
+// agents.codex.permission_profile values keep working):
+//
+//   - ""                              → "" (omit; codex uses its own default,
+//     which is a restricted read-only sandbox — the session appears "stuck"
+//     on the first write. Set explicitly to avoid surprise.)
+//   - "default" / "workspaceWrite" / "workspace-write" → "workspace-write"
+//   - "readOnly" / "read-only"        → "read-only"
+//   - "dangerFullAccess" / "danger-full-access" / "disabled" → "danger-full-access"
+//
+// Anything else is an error. We fail loudly rather than silently omitting the
+// field: a dropped sandbox degrades to codex's read-only default, so the
+// session stays alive but cannot write — precisely the silent-failure class
+// this backend was just repaired for.
+func codexSandboxMode(name string) (string, error) {
 	s := strings.TrimSpace(name)
 	switch s {
 	case "":
-		// Empty = let codex pick its own default. This is the conservative
-		// (and historically broken) path; callers who want write access
-		// should set "workspaceWrite" or a JSON literal.
-		return nil
+		// Empty = let codex pick its own default. Conservative path; callers
+		// who want write access should set "workspaceWrite".
+		return "", nil
 	case "default", "workspaceWrite", "workspace-write":
-		// Codex 0.125.0 dropped the legacy bare-string form; emit the typed
-		// equivalent so the field actually takes effect (otherwise codex
-		// falls back to its own default which is read-only sandbox and the
-		// session gets stuck on the first write).
-		return json.RawMessage(`{"type":"managed","fileSystem":{"type":"unrestricted"},"network":{"enabled":false}}`)
+		return "workspace-write", nil
 	case "readOnly", "read-only":
-		return json.RawMessage(`{"type":"managed","fileSystem":{"type":"restricted","entries":[{"path":{"type":"special","value":{"kind":"root"}},"access":"read"}]},"network":{"enabled":false}}`)
+		return "read-only", nil
 	case "dangerFullAccess", "danger-full-access", "disabled":
-		return json.RawMessage(`{"type":"disabled"}`)
+		return "danger-full-access", nil
 	}
 	if strings.HasPrefix(s, "{") {
-		// Trust the operator if they hand-typed JSON. Decoding it once
-		// here would catch syntax errors but we'd rather codex itself
-		// surface "invalid type" so the user sees the same error message
-		// our docs link to.
-		return json.RawMessage(s)
+		return "", fmt.Errorf(
+			"agents.codex.permission_profile no longer accepts a JSON object (%q): codex 0.153.x replaced the PermissionProfile object with the SandboxMode enum. Use \"workspace-write\", \"read-only\", or \"danger-full-access\"",
+			s)
 	}
-	return nil
+	return "", fmt.Errorf(
+		"unrecognized agents.codex.permission_profile %q: expected \"default\"/\"workspaceWrite\" (→ workspace-write), \"readOnly\" (→ read-only), or \"dangerFullAccess\"/\"disabled\" (→ danger-full-access)",
+		s)
 }
 
 // ── Backend interface ──
