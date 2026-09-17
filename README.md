@@ -1,19 +1,31 @@
-# soul-cli
+# miro-code
 
-A soul-aware launcher for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It gives your AI a persistent identity, memory, and the ability to evolve across sessions.
+A soul-aware launcher for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It gives your AI a persistent identity, memory, and the ability to evolve across sessions — plus built-in multi-CLI orchestration: dispatch coding tasks to other logged-in coding CLIs with one command.
 
-Claude Code starts fresh every time — no memory, no personality, no idea who you are. **soul-cli** fixes this by assembling markdown files (identity, personality, memory, skills) into a system prompt injected at launch.
+Claude Code starts fresh every time — no memory, no personality, no idea who you are. **miro-code** fixes this by assembling markdown files (identity, personality, memory, skills) into a system prompt injected at launch.
+
+> 📖 **使用教程（中文）**：[docs/tutorial.zh.md](docs/tutorial.zh.md) · GitBook 版：https://xlegao.gitbook.io/mirobiz/
+>
+> Forked & extended from [kiyor/soul-cli](https://github.com/kiyor/soul-cli) — upstream project by @kiyor.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/kiyor/soul-cli.git && cd soul-cli
-go build -ldflags "-X main.defaultAppName=myai" -o myai .
-mv myai ~/go/bin/
+git clone https://github.com/gaoios/miro-code.git && cd miro-code
+go build -o miro .
+mv miro ~/go/bin/
 
-myai init                          # interactive wizard
-myai init --archetype companion    # pick a personality archetype
-myai                               # Claude Code, but it remembers
+miro init                          # interactive wizard
+miro init --archetype companion    # pick a personality archetype
+miro                               # Claude Code, but it remembers
+```
+
+**Dispatch a task to another coding CLI** (requires `miro server` running + the target CLI logged in):
+
+```bash
+miro spawn --bare --backend grok --model grok-4.6 \
+  --project /absolute/path/to/repo \
+  "Review the concurrency logic in src/ and list the 3 riskiest issues" --wait
 ```
 
 The `init` command creates your workspace, generates soul files, and installs a setup-guide skill — no manual file editing needed.
