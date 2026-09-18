@@ -39,7 +39,7 @@ Daily notes record what happened each day. **Today's and yesterday's** notes are
 ### How they're created
 
 - **Manually:** Write them yourself
-- **Automatically:** Run `myai --cron` — it scans recent Claude Code session logs and generates a summary
+- **Automatically:** Run `miro --cron` — it scans recent Claude Code session logs and generates a summary
 
 ### Format
 
@@ -65,7 +65,7 @@ There's no required format, but a common pattern:
 |-----|----------|
 | Today | Loaded into every session |
 | Yesterday | Loaded into every session |
-| 2+ days | Not loaded, but searchable via `myai db search` |
+| 2+ days | Not loaded, but searchable via `miro db search` |
 | Important info | Should be promoted to topic files |
 
 ## Level 2: Topic Files
@@ -140,12 +140,12 @@ The session database automatically tracks:
 ### Database commands
 
 ```bash
-myai db stats                # Count of summarized sessions
-myai db search "kubernetes"  # Search session summaries
-myai db pending              # Sessions that need review
-myai db gc                   # Clean up deleted sessions
-myai db patterns             # List extracted patterns
-myai db cultivate            # Generate skills from mature patterns
+miro db stats                # Count of summarized sessions
+miro db search "kubernetes"  # Search session summaries
+miro db pending              # Sessions that need review
+miro db gc                   # Clean up deleted sessions
+miro db patterns             # List extracted patterns
+miro db cultivate            # Generate skills from mature patterns
 ```
 
 ## The Cron Flow
@@ -153,7 +153,7 @@ myai db cultivate            # Generate skills from mature patterns
 The `--cron` mode automates the memory pipeline:
 
 ```bash
-myai --cron
+miro --cron
 ```
 
 What it does:
@@ -169,7 +169,7 @@ What it does:
 
 ```crontab
 # Run every 4 hours
-0 */4 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" myai --cron >> /tmp/myai-cron.log 2>&1
+0 */4 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" miro --cron >> /tmp/miro-cron.log 2>&1
 ```
 
 ## Tips

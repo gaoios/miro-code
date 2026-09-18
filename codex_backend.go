@@ -383,16 +383,22 @@ func spawnCodex(opts SessionOpts) (*codexBackend, error) {
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = stdin.Close()
 		cb.cancel()
 		return nil, fmt.Errorf("codex stdout pipe: %w", err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
 		cb.cancel()
 		return nil, fmt.Errorf("codex stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = stderr.Close()
 		cb.cancel()
 		return nil, fmt.Errorf("codex start: %w", err)
 	}

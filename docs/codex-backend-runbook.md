@@ -5,7 +5,7 @@
 > · [`codex-app-server.md`](codex-app-server.md) (protocol summary)
 
 This runbook is for the operator who has to install, enable, switch on,
-debug or roll back the codex backend on a running weiran server.
+debug or roll back the codex backend on a running miro server.
 
 ---
 
@@ -16,7 +16,7 @@ debug or roll back the codex backend on a running weiran server.
 | What is "codex backend"? | A second Backend implementation that drives `codex app-server` over JSON-RPC 2.0 instead of `claude` over stream-json. Same `Backend` interface, same SSE / IPC / Telegram fanout. |
 | Default? | **No.** All existing sessions still spawn `claude`. Codex is opt-in per `agents.codex.enabled = true` and per-session via `backend: "codex"` or a model-prefix / `model_map` lookup. |
 | Smallest experiment | `bash scripts/codex-smoke.sh` (stage 1 only — no server needed) |
-| Production smoke | Same script with `WEIRAN_SERVER_URL` + `WEIRAN_AUTH_TOKEN` set |
+| Production smoke | Same script with `MIRO_SERVER_URL` + `MIRO_AUTH_TOKEN` set |
 | Where do metrics live? | `GET /api/codex/metrics` (no auth) — see §6 |
 | Daily liveness check | `hooks/heartbeat.d/95-codex-self-check.sh` runs once/day at 04:00 local |
 
@@ -47,15 +47,15 @@ Verify:
 ls ~/.codex/auth.json && echo OK
 ```
 
-### 2.3 weiran build with codex backend
+### 2.3 miro build with codex backend
 
 The codex backend lives on `feat/codex-backend`:
 
 ```bash
-cd ~/.openclaw/workspace/scripts/weiran
+cd ~/.openclaw/workspace/scripts/miro
 git checkout feat/codex-backend
 make            # build with ldflags + codesign
-make install    # → ~/.local/bin/weiran
+make install    # → ~/.local/bin/miro
 ```
 
 **Always `make`. Never bare `go build`** — the codesign step is needed
@@ -67,7 +67,7 @@ on macOS for Keychain access (Telegram tokens etc.).
 make server-restart
 ```
 
-This stops the launchd `weiran` job, replaces the binary, starts it
+This stops the launchd `miro` job, replaces the binary, starts it
 again. Existing CC sessions are rehydrated; codex sessions (none yet)
 would not be (no resume implemented yet — see §8).
 
@@ -76,7 +76,7 @@ would not be (no resume implemented yet — see §8).
 ## 3 — Enabling the backend
 
 Edit `~/.openclaw/data/config.json` (the file the server reads on
-startup; `weiran config` shows the resolved values):
+startup; `miro config` shows the resolved values):
 
 ```jsonc
 {
@@ -85,7 +85,7 @@ startup; `weiran config` shows the resolved values):
       "enabled": true,
       "binary": "codex",                                  // optional, PATH lookup
       "model_map": {
-        "opus[1m]":             "gpt-5.5",                // weiran name → codex name
+        "opus[1m]":             "gpt-6-astra",             // miro name → codex name
         "codex/gpt-5.4-codex":  "gpt-5.4-codex"
       },
       "approval_policy": "never",                         // codex-side default
@@ -121,12 +121,12 @@ Three ways, in priority order:
 
 ```bash
 curl -X POST http://127.0.0.1:8090/api/sessions \
-  -H "Authorization: Bearer $WEIRAN_AUTH_TOKEN" \
+  -H "Authorization: Bearer $MIRO_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name":"my-codex-test",
     "backend":"codex",
-    "model":"gpt-5.5",
+    "model":"gpt-6-astra",
     "project":"/tmp",
     "initial_message":"reply ok"
   }'
@@ -138,7 +138,7 @@ without `agents.codex.enabled` returns HTTP 400.
 ### 4.2 spawn flag
 
 ```bash
-weiran spawn --bare --backend codex --model gpt-5.5 \
+miro spawn --bare --backend codex --model gpt-6-astra \
   --project /tmp 'reply with one word: ok'
 ```
 
@@ -160,14 +160,14 @@ So with the example `model_map` above:
 
 | Model passed in | Backend | Codex-side model |
 |-----------------|---------|------------------|
-| `opus[1m]`      | codex   | `gpt-5.5`        |
+| `opus[1m]`      | codex   | `gpt-6-astra`    |
 | `codex/gpt-5.4-codex` | codex | `gpt-5.4-codex` |
 | `claude-haiku`  | cc      | n/a              |
 
 ### 4.4 Resuming
 
 **Codex backend has no resume yet.** Round 5 leaves `set_model` and
-`thread/resume` unimplemented. A weiran session that ran on codex,
+`thread/resume` unimplemented. A miro session that ran on codex,
 then is restarted, will not pick up where the codex thread left off.
 The CC backend's resume flow is unchanged.
 
@@ -266,7 +266,7 @@ in `tool-hooks.yaml`, but the wire path differs:
 
 | Aspect | CC backend | Codex backend |
 |--------|-----------|---------------|
-| Hook entry | `claude` invokes `~/.claude/hooks/PreToolUse` (subprocess) | `codex_app-server` sends a JSON-RPC server request, weiran receives it inside the same Go process |
+| Hook entry | `claude` invokes `~/.claude/hooks/PreToolUse` (subprocess) | `codex_app-server` sends a JSON-RPC server request, miro receives it inside the same Go process |
 | Evaluator | `tool_hook.go` PreToolUse handler runs as subprocess, reads stdin/stdout | `tool_hook.go evaluateToolHookForApproval` (in-process function — Round 4 addition) |
 | Decision shape | stdout JSON `{permissionDecision: allow|deny|ask, …}` | typed `Codex{CommandExec,FileChange,Permissions}ApprovalResponse` (`accept` / `decline`) |
 | Audit | `tool_hook_audit` table in `sessions.db` | **Not currently audited** (Round 5 limitation, see §8) |
@@ -289,7 +289,7 @@ These will be addressed in subsequent rounds; they are not bugs.
 
 `codexBackend.controlRequest` returns an error for `set_model`. Codex
 doesn't support changing the model on an existing thread; the only path
-is to call `thread/resume` with a new thread, which weiran does not
+is to call `thread/resume` with a new thread, which miro does not
 yet wire into the CC-style fallback chain.
 
 If you change a session's model and that session is on codex, the
@@ -298,7 +298,7 @@ backend stays alive and on the original model.
 
 ### 8.2 No fallback chain
 
-For CC, when a session hits 429 / token-budget-exhausted, weiran can
+For CC, when a session hits 429 / token-budget-exhausted, miro can
 restart it on the next entry of `defaultModelFallbacks`. The codex
 backend doesn't participate in that chain yet — `watchCodexExit` flips
 the session to `error` and the operator retries manually.
@@ -319,7 +319,7 @@ as a TODO in `server_process_codex.go` near the SSE emission switch.
 ### 8.4 Tool-hook audit absent for codex
 
 The CC stream-json hook subprocess writes to `tool_hook_audit` so we
-can run weekly stats with `weiran tool-hook stats --days 7`. The
+can run weekly stats with `miro tool-hook stats --days 7`. The
 in-process codex evaluator (`evaluateToolHookForApproval`) does not.
 Audit-equivalent path: read `codex_approvals.*` from
 `/api/codex/metrics` for aggregate counts; per-rule attribution
@@ -434,11 +434,11 @@ error verbatim.
 
 ### 9.5 Smoke script stage 1 passes, stage 2 fails
 
-That means the codex protocol works but the weiran wiring is broken.
+That means the codex protocol works but the miro wiring is broken.
 Check in order:
 
 - Server logs (`tail -50 ~/.openclaw/data/server.log` or
-  `journalctl --user -u weiran` depending on platform).
+  `journalctl --user -u miro` depending on platform).
 - `/api/codex/metrics` returns 200 → server has Round 5 endpoints.
 - POST /api/sessions response body — usually has the actual error.
 
@@ -452,11 +452,11 @@ the `*-codex-*` failure won't cascade.
 To re-run manually:
 
 ```bash
-WEIRAN_DB=/tmp /Users/kiyor/.openclaw/workspace/scripts/weiran/hooks/heartbeat.d/95-codex-self-check.sh
+MIRO_DB=/tmp /Users/kiyor/.openclaw/workspace/scripts/miro/hooks/heartbeat.d/95-codex-self-check.sh
 ls /tmp/.codex-self-check-*    # marker so it doesn't re-run today
 ```
 
-(Setting `WEIRAN_DB=/tmp` writes the once-per-day marker to /tmp instead
+(Setting `MIRO_DB=/tmp` writes the once-per-day marker to /tmp instead
 of the production state dir, so the real state isn't poisoned.)
 
 ---
@@ -509,7 +509,7 @@ preserved every CC code path verbatim.
 
 Tracked here for the next person who touches this code:
 
-- [ ] `set_model` via `thread/resume` — needs codex-side thread persistence and a resumeID survives across weiran restarts.
+- [ ] `set_model` via `thread/resume` — needs codex-side thread persistence and a resumeID survives across miro restarts.
 - [ ] Codex into the fallback model chain — `watchCodexExit` calls `tryNextFallback` on rate-limit.
 - [ ] Front-end renderer for `codex_*` SSE events.
 - [ ] `tool_hook_audit` write from `evaluateToolHookForApproval` (currently CC-only).

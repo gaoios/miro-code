@@ -10,20 +10,20 @@
 ```bash
 git clone https://github.com/kiyor/soul-cli.git
 cd soul-cli
-go build -ldflags "-X main.defaultAppName=myai" -o myai .
-mv myai ~/go/bin/     # or anywhere in PATH
+go build -ldflags "-X main.defaultAppName=miro" -o miro .
+mv miro ~/go/bin/     # or anywhere in PATH
 ```
 
 !!! tip "The name is everything"
-    The `-X main.defaultAppName=myai` flag bakes the identity into the binary. **All paths, env vars, and logs are derived from this name:**
+    The `-X main.defaultAppName=miro` flag bakes the identity into the binary. **All paths, env vars, and logs are derived from this name:**
 
     | Binary name | Home dir | Env prefix | Data dir |
     |-------------|----------|------------|----------|
-    | `myai` | `~/.openclaw/` | `MYAI_` | `~/.openclaw/data/` |
+    | `miro` | `~/.openclaw/` | `MIRO_` | `~/.openclaw/data/` |
     | `jarvis` | `~/.openclaw/` | `JARVIS_` | `~/.openclaw/data/` |
     | `atlas` | `~/.openclaw/` | `ATLAS_` | `~/.openclaw/data/` |
 
-    Want a completely separate home? Set `MYAI_HOME=~/my-ai`.
+    Want a completely separate home? Set `MIRO_HOME=~/my-ai`.
 
 ## Initialize (Recommended)
 
@@ -32,7 +32,7 @@ The `init` command creates your workspace, generates soul files, and installs a 
 ### Interactive Wizard
 
 ```bash
-myai init
+miro init
 ```
 
 The wizard asks for your AI's name, role, personality, your name, and timezone. It also offers **personality archetypes** — pre-built templates with depth:
@@ -50,7 +50,7 @@ The wizard asks for your AI's name, role, personality, your name, and timezone. 
 All parameters can be passed as flags — zero stdin required:
 
 ```bash
-myai init --archetype engineer --name kuro --owner alex --tz America/Los_Angeles
+miro init --archetype engineer --name kuro --owner alex --tz America/Los_Angeles
 ```
 
 | Flag | Description | Default |
@@ -118,7 +118,7 @@ If you prefer writing soul files by hand, create them in `~/.openclaw/workspace/
     ```markdown
     # IDENTITY.md
 
-    - **Name:** MyAI
+    - **Name:** miro
     - **Role:** Personal engineering assistant
     ```
 
@@ -138,7 +138,7 @@ If you prefer writing soul files by hand, create them in `~/.openclaw/workspace/
 ## Launch
 
 ```bash
-myai
+miro
 ```
 
 That's it. Claude Code starts with your soul injected. Ask it _"What's your name?"_ — it knows.

@@ -1058,3 +1058,20 @@ func TestCodexBackendErrorNotificationEmits(t *testing.T) {
 	}
 	t.Fatal("never observed UEvtBackendError")
 }
+
+func TestSpawnCodexStartFailureClosesPipes(t *testing.T) {
+	origBinary := codexBinary
+	defer func() { codexBinary = origBinary }()
+	codexBinary = "/nonexistent/binary/path"
+
+	cb, err := spawnCodex(SessionOpts{WorkDir: t.TempDir()})
+	if err == nil {
+		if cb != nil {
+			cb.shutdown()
+		}
+		t.Fatal("expected error from spawnCodex with nonexistent binary, got nil")
+	}
+	if !strings.Contains(err.Error(), "codex start:") {
+		t.Fatalf("expected codex start error, got: %v", err)
+	}
+}

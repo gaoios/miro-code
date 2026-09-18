@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 )
 
 // TestExtractImagesUserUpload covers the primary Web-UI resume path: a user
@@ -148,5 +150,84 @@ func TestSnapshotPendingAUQ_AUQPassesInputThrough(t *testing.T) {
 	}
 	if string(got) != string(original) {
 		t.Fatalf("auq input was reshaped:\nwant %s\ngot  %s", original, got)
+	}
+}
+
+func TestSessionManager_MaxSessionsLimit(t *testing.T) {
+	sm := newSessionManager(2, 30*time.Minute, 4*time.Hour)
+	defer sm.shutdownAll()
+
+	// Fill interactive slots
+	sm.mu.Lock()
+	sm.sessions["s1"] = &serverSession{ID: "s1", Category: CategoryInteractive}
+	sm.sessions["s2"] = &serverSession{ID: "s2", Category: CategoryInteractive}
+	sm.mu.Unlock()
+
+	// Attempt to create a 3rd interactive session via createSessionWithOpts
+	dir := t.TempDir()
+	_, err := sm.createSessionWithOpts(sessionCreateOpts{
+		Project:  dir,
+		Category: CategoryInteractive,
+	})
+	if err == nil || !strings.Contains(err.Error(), "max interactive sessions limit reached") {
+		t.Fatalf("expected max interactive sessions limit error, got: %v", err)
+	}
+
+	// Ephemeral session (e.g. heartbeat) should NOT be blocked by interactive maxSessions
+	_, err = sm.createSessionWithOpts(sessionCreateOpts{
+		Project:  dir,
+		Category: CategoryHeartbeat,
+	})
+	if err != nil && strings.Contains(err.Error(), "max interactive sessions limit reached") {
+		t.Fatalf("heartbeat session should not be blocked by maxSessions limit: %v", err)
+	}
+}
+
+type mockProcessForDestroyTest struct {
+	shutdownCalled bool
+}
+
+func (m *mockProcessForDestroyTest) alive() bool { return true }
+func (m *mockProcessForDestroyTest) shutdown()   { m.shutdownCalled = true }
+func (m *mockProcessForDestroyTest) sendMessage(string) error { return nil }
+func (m *mockProcessForDestroyTest) events() <-chan UnifiedEvent { return nil }
+func (m *mockProcessForDestroyTest) info() BackendInfo { return BackendInfo{} }
+func (m *mockProcessForDestroyTest) waitInit(time.Duration) bool { return true }
+func (m *mockProcessForDestroyTest) suppressNextClose() {}
+func (m *mockProcessForDestroyTest) sendPermissionDecision(string, map[string]any) error { return nil }
+func (m *mockProcessForDestroyTest) controlRequest(string, map[string]any) error { return nil }
+func (m *mockProcessForDestroyTest) controlRequestSync(string, map[string]any, time.Duration) (json.RawMessage, error) { return nil, nil }
+func (m *mockProcessForDestroyTest) killProcess() {}
+func (m *mockProcessForDestroyTest) markRateLimited() {}
+
+func TestDestroySession_DetachesProcessUnderLock(t *testing.T) {
+	sm := newSessionManager(5, 30*time.Minute, 4*time.Hour)
+	defer sm.shutdownAll()
+
+	proc := &mockProcessForDestroyTest{}
+	sess := &serverSession{
+		ID:      "test-destroy-sess",
+		process: proc,
+	}
+
+	sm.mu.Lock()
+	sm.sessions[sess.ID] = sess
+	sm.mu.Unlock()
+
+	if err := sm.destroySession(sess.ID); err != nil {
+		t.Fatalf("destroySession: %v", err)
+	}
+
+	// Process pointer on session must be cleared under lock
+	sess.mu.Lock()
+	remainingProc := sess.process
+	sess.mu.Unlock()
+
+	if remainingProc != nil {
+		t.Errorf("sess.process was not cleared under lock, got: %v", remainingProc)
+	}
+
+	if !proc.shutdownCalled {
+		t.Errorf("expected mockProcess.shutdown to be called")
 	}
 }

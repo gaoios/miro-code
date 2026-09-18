@@ -42,11 +42,11 @@ go build -ldflags "-X main.buildVersion=${VERSION} -X main.buildDate=$(date -u +
 mkdir -p ~/.local/bin && cp soul ~/.local/bin/soul
 
 # 6. Initialize workspace
-export WEIRAN_HOME=$HOME/.soul  # or any directory you want
+export MIRO_HOME=$HOME/.soul  # or any directory you want
 soul init --archetype engineer --name my-ai --owner yourname --tz America/Los_Angeles
 
 # 7. Start server
-WEIRAN_HOME=$HOME/.soul CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..." \
+MIRO_HOME=$HOME/.soul CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..." \
   soul server --token your-secret-token --host 0.0.0.0 --port 9847
 ```
 
@@ -145,7 +145,7 @@ cp aria ~/.local/bin/aria
 
 ```bash
 # Set home directory (default: ~/.openclaw)
-export WEIRAN_HOME=$HOME/.soul
+export MIRO_HOME=$HOME/.soul
 
 # Non-interactive init
 soul init --archetype engineer --name my-ai --owner yourname --tz America/Los_Angeles
@@ -174,11 +174,11 @@ Edit `SOUL.md` and `IDENTITY.md` to customize personality.
 
 ```bash
 # Foreground (for testing)
-WEIRAN_HOME=$HOME/.soul CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..." \
+MIRO_HOME=$HOME/.soul CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..." \
   soul server --token my-secret --host 0.0.0.0 --port 9847
 
 # Background
-nohup env WEIRAN_HOME=$HOME/.soul CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..." \
+nohup env MIRO_HOME=$HOME/.soul CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..." \
   soul server --token my-secret --host 0.0.0.0 --port 9847 \
   > /var/log/soul-server.log 2>&1 &
 ```
@@ -219,7 +219,7 @@ After=network.target
 [Service]
 Type=simple
 User=youruser
-Environment=WEIRAN_HOME=/home/youruser/.soul
+Environment=MIRO_HOME=/home/youruser/.soul
 Environment=CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-your-token
 Environment=PATH=/usr/local/go/bin:/home/youruser/.local/bin:/usr/bin:/bin
 ExecStart=/home/youruser/.local/bin/soul server --token your-secret --host 0.0.0.0 --port 9847
@@ -243,7 +243,7 @@ journalctl -u soul-server -f
 
 ### config.json
 
-Optional config file at `$WEIRAN_HOME/workspace/config.json`:
+Optional config file at `$MIRO_HOME/workspace/config.json`:
 
 ```json
 {
@@ -261,9 +261,9 @@ Optional config file at `$WEIRAN_HOME/workspace/config.json`:
 
 | Variable | Description |
 |----------|-------------|
-| `WEIRAN_HOME` | Base directory (default: `~/.openclaw`) |
+| `MIRO_HOME` | Base directory (default: `~/.openclaw`) |
 | `ANTHROPIC_API_KEY` | Anthropic OAuth token or API key |
-| `WEIRAN_SERVER_TOKEN` | Server auth token (alt to `--token`) |
+| `MIRO_SERVER_TOKEN` | Server auth token (alt to `--token`) |
 
 > Note: The env var prefix matches the binary name. If your binary is `aria`, use `ARIA_HOME`, `ARIA_SERVER_TOKEN`, etc.
 

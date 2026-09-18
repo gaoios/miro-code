@@ -1,8 +1,8 @@
 # Codex app-server JSON-RPC 协议摘要
 
-> 给 weiran codex backend 实现用的协议参考。原文在 codex repo:
+> 给 miro codex backend 实现用的协议参考。原文在 codex repo:
 > `~/code/codex/codex-rs/app-server/README.md`（1786 行完整版）
-> 本文档只保留 weiran 适配需要的子集。
+> 本文档只保留 miro 适配需要的子集。
 
 ## 一句话
 
@@ -58,7 +58,7 @@ Thread (一段对话, 持久化)
 
 Item 三段式生命周期：`item/started` → `item/<type>/delta`*N → `item/completed`。
 
-## weiran 适配子集（必须实现）
+## miro 适配子集（必须实现）
 
 ### 必需的 method（client → server）
 
@@ -95,7 +95,7 @@ Item 三段式生命周期：`item/started` → `item/<type>/delta`*N → `item/
 | `item/fileChange/requestApproval` | 文件改动批准请求 | 同上 |
 | `item/permissions/requestApproval` | 权限请求 | `{ scope: "turn" \| "session", permissions: {...} }` |
 
-weiran 通过 tool-hook 桥接：把这些 request 翻译成 PreToolUse hook 事件喂现有规则。
+miro 通过 tool-hook 桥接：把这些 request 翻译成 PreToolUse hook 事件喂现有规则。
 
 ## 关键 schema 例子
 
@@ -107,8 +107,8 @@ weiran 通过 tool-hook 桥接：把这些 request 翻译成 PreToolUse hook 事
   "method": "initialize",
   "params": {
     "clientInfo": {
-      "name": "weiran",
-      "title": "Weiran soul-cli",
+      "name": "miro",
+      "title": "miro soul-cli",
       "version": "1.12.0"
     },
     "capabilities": {
@@ -260,7 +260,7 @@ codex app-server generate-ts --out tmp/codex-schema-ts
 codex app-server generate-json-schema --out tmp/codex-schema-json
 ```
 
-输出固定到当前 codex 版本。weiran 的 codex_protocol.go 应该从这里反转 Go 结构（手写最常用 40-50 个，其他需要时再加）。
+输出固定到当前 codex 版本。miro 的 codex_protocol.go 应该从这里反转 Go 结构（手写最常用 40-50 个，其他需要时再加）。
 
 ## Authentication / Sandbox 选项
 
@@ -277,7 +277,7 @@ codex app-server generate-json-schema --out tmp/codex-schema-json
 - ~~`permissionProfile`~~: 0.153.x 起已移除
 - ~~`sandboxPolicy`~~: 已 deprecate（仅 `turn/start` 上还留着，soul 从不发送）
 
-weiran 默认配置建议：`permission_profile: "workspaceWrite"`（config key 名保留，
+miro 默认配置建议：`permission_profile: "workspaceWrite"`（config key 名保留，
 在线上映射为 `sandbox: "workspace-write"`）+ `approvalPolicy: "never"`（让 hook 全权管控）。
 
 ## 与 CC stream-json 对比速查

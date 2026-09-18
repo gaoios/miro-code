@@ -92,3 +92,67 @@ func TestAgyCommandArgsDefaultToPlanWithoutDangerousPermissions(t *testing.T) {
 		t.Fatalf("safe defaults include dangerous permissions: %s", args)
 	}
 }
+
+func TestParseAgyTextOutput(t *testing.T) {
+	_, err := parseAgyTextOutput([]byte("   "))
+	if err == nil {
+		t.Fatal("expected error for empty text, got nil")
+	}
+	text, err := parseAgyTextOutput([]byte(" hello world \n"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if text != "hello world" {
+		t.Fatalf("expected 'hello world', got %q", text)
+	}
+}
+
+func TestAgyBackendRunTurnHandlesErrorsAndRateLimit(t *testing.T) {
+	fakeAgy := filepath.Join(t.TempDir(), "agy")
+	script := `#!/bin/sh
+echo "Rate limit exceeded. Please try again later." >&2
+exit 1
+`
+	if err := os.WriteFile(fakeAgy, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldBinary := agyBinary
+	t.Cleanup(func() { agyBinary = oldBinary })
+	agyBinary = fakeAgy
+
+	ab, err := spawnAgy(SessionOpts{WorkDir: t.TempDir(), ServerSessionID: "server-session-err"})
+	if err != nil {
+		t.Fatalf("spawnAgy returned error: %v", err)
+	}
+	defer ab.shutdown()
+
+	if err := ab.sendMessage("trigger error"); err != nil {
+		t.Fatalf("sendMessage returned error: %v", err)
+	}
+
+	deadline := time.After(2 * time.Second)
+	var observedError bool
+	for {
+		select {
+		case ev := <-ab.events():
+			if ev.Kind == UEvtTurnCompleted {
+				var payload UnifiedTurnPayload
+				if err := json.Unmarshal(ev.Payload, &payload); err == nil {
+					if payload.Status == "error" && strings.Contains(payload.Error, "Rate limit exceeded") {
+						observedError = true
+					}
+				}
+				if !observedError {
+					t.Fatalf("expected error turn completion, got: %s", string(ev.Payload))
+				}
+				if !ab.rateLimited.Load() {
+					t.Fatalf("expected rateLimited to be marked true")
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for error turn completion")
+		}
+	}
+}

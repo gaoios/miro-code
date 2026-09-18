@@ -106,7 +106,7 @@ soul
 Explicit selection is intended for diagnostics and reproducible automation:
 
 ```bash
-soul spawn --bare --backend codex --model gpt-5.5 --project "$PWD" \
+soul spawn --bare --backend codex --model gpt-6-astra --project "$PWD" \
   "Implement the requested change and run tests" --wait
 
 soul spawn --bare --backend grok --project "$PWD" \

@@ -6,13 +6,13 @@ Claude Code starts fresh every time — no memory, no personality, no idea who y
 
 ```bash
 # Tell Claude Code to do it for you:
-# "Clone https://github.com/kiyor/soul-cli, build it as myai,
+# "Clone https://github.com/kiyor/soul-cli, build it as miro,
 #  set up a workspace with soul files for me."
 
 # Or do it yourself:
 git clone https://github.com/kiyor/soul-cli.git && cd soul-cli
-go build -ldflags "-X main.defaultAppName=myai" -o myai .
-myai    # Claude Code, but it remembers
+go build -ldflags "-X main.defaultAppName=miro" -o miro .
+miro    # Claude Code, but it remembers
 ```
 
 ## What You Get
@@ -72,23 +72,23 @@ Claude Code's own system prompt stays intact. Your soul is **additive**.
 === "Interactive"
 
     ```bash
-    myai                         # full terminal, soul injected
-    myai -p "check disk usage"   # one-shot task
-    myai -r                      # resume a previous session
+    miro                         # full terminal, soul injected
+    miro -p "check disk usage"   # one-shot task
+    miro -r                      # resume a previous session
     ```
 
 === "Automated"
 
     ```bash
-    myai --cron                  # scan sessions → update daily notes
-    myai --heartbeat             # health check services
-    myai --evolve                # review & improve soul files
+    miro --cron                  # scan sessions → update daily notes
+    miro --heartbeat             # health check services
+    miro --evolve                # review & improve soul files
     ```
 
 === "Server"
 
     ```bash
-    myai server --token secret   # HTTP API + Web UI
+    miro server --token secret   # HTTP API + Web UI
     # open http://localhost:9847/?token=secret
     ```
 

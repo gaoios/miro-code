@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-`soul-cli` is a Go CLI that launches Claude Code with a "soul prompt". It assembles identity/memory/skill files into a system prompt, then `exec`s or subprocess-runs `claude` with that prompt. It also runs an HTTP server for persistent session management, handles cron-based memory consolidation, heartbeat health checks, Telegram integration, provider proxying, and a session summary database. The binary name is configurable — compile as `weiran`, `soul`, or any name you want; all paths and env vars are derived from it.
+`soul-cli` is a Go CLI that launches Claude Code with a "soul prompt". It assembles identity/memory/skill files into a system prompt, then `exec`s or subprocess-runs `claude` with that prompt. It also runs an HTTP server for persistent session management, handles cron-based memory consolidation, heartbeat health checks, Telegram integration, provider proxying, and a session summary database. The binary name is configurable — compile as `miro`, `soul`, or any name you want; all paths and env vars are derived from it.
 
 ## Build & Run
 
@@ -186,16 +186,16 @@ Multi-file Go program (package main, ~29,000 lines across 58 files) with one int
 ## CLI Subcommands
 
 ### Core
-- `weiran` — Interactive session
-- `weiran -p "task"` — One-shot
-- `weiran -r [id]` — Resume (TUI picker if no ID)
-- `weiran --model <model>` — Override model
-- `weiran --standard` — Append mode
+- `miro` — Interactive session
+- `miro -p "task"` — One-shot
+- `miro -r [id]` — Resume (TUI picker if no ID)
+- `miro --model <model>` — Override model
+- `miro --standard` — Append mode
 
 ### Server
-- `weiran server [--port --host --token]` — Start HTTP API server
+- `miro server [--port --host --token]` — Start HTTP API server
 
-### Database (`weiran db`)
+### Database (`miro db`)
 - `db recall` / `db pending` / `db summarized` — Session scan status
 - `db save '<json>'` / `db save-batch` — Save summaries
 - `db list` / `db stats` — View records
@@ -209,43 +209,43 @@ Multi-file Go program (package main, ~29,000 lines across 58 files) with one int
 - `db search-fts <query> [--scope --limit --json]` — FTS search
 
 ### Spawn
-- `weiran spawn <agent> "task" [--wait]` — Dispatch task
-- `weiran spawn --bare --model <model> --project <path> "task"` — Bare spawn
-- `weiran spawn list` / `log <id>` / `finish <id>` — Manage spawns
+- `miro spawn <agent> "task" [--wait]` — Dispatch task
+- `miro spawn --bare --model <model> --project <path> "task"` — Bare spawn
+- `miro spawn list` / `log <id>` / `finish <id>` — Manage spawns
 
 ### Evolution
-- `weiran evolve-probe --feedback <name> --scenario <id>` — Probe feedback rule
-- `weiran evolve-probe --sample N` — Sample least-probed rules
-- `weiran evolve-probe --regression-archive` — Monthly regression
+- `miro evolve-probe --feedback <name> --scenario <id>` — Probe feedback rule
+- `miro evolve-probe --sample N` — Sample least-probed rules
+- `miro evolve-probe --regression-archive` — Monthly regression
 
 ### Diagnostics
-- `weiran status` — Quick health
-- `weiran doctor [cron]` — Deep diagnostics
-- `weiran config` — Show config
-- `weiran log [N]` — View daily notes
-- `weiran diff` — Soul/memory changes
-- `weiran prompt` — Print assembled prompt with token stats
-- `weiran lint` — Validate markdown formats
+- `miro status` — Quick health
+- `miro doctor [cron]` — Deep diagnostics
+- `miro config` — Show config
+- `miro log [N]` — View daily notes
+- `miro diff` — Soul/memory changes
+- `miro prompt` — Print assembled prompt with token stats
+- `miro lint` — Validate markdown formats
 
 ### Build & Version
-- `weiran build` — Safe build (backup→build→verify→rollback)
-- `weiran versions` — List versions
-- `weiran rollback [N]` — Rollback
-- `weiran update` — Git pull + build
+- `miro build` — Safe build (backup→build→verify→rollback)
+- `miro versions` — List versions
+- `miro rollback [N]` — Rollback
+- `miro update` — Git pull + build
 
 ### Communication
-- `weiran notify [--dry-run] <message>` — Send Telegram text
-- `weiran notify-photo [--dry-run] <URL> [caption]` — Send Telegram photo
-- `weiran new` — Reset Telegram sessions
-- `weiran models` — List models
+- `miro notify [--dry-run] <message>` — Send Telegram text
+- `miro notify-photo [--dry-run] <URL> [caption]` — Send Telegram photo
+- `miro new` — Reset Telegram sessions
+- `miro models` — List models
 
 ### Session Management (via server IPC)
-- `weiran session list` — List active sessions
-- `weiran session read <id>` — Read session history
-- `weiran session search <id> "keyword"` — Search session
-- `weiran session send <id> "message"` — Send message to session
-- `weiran session wait <id>` — Wait for session idle
-- `weiran session close <id>` — Destroy session
+- `miro session list` — List active sessions
+- `miro session read <id>` — Read session history
+- `miro session search <id> "keyword"` — Search session
+- `miro session send <id> "message"` — Send message to session
+- `miro session wait <id>` — Wait for session idle
+- `miro session close <id>` — Destroy session
 
 ## Concurrency Model
 
@@ -273,8 +273,8 @@ Multi-file Go program (package main, ~29,000 lines across 58 files) with one int
 
 - `workspace` = `~/.openclaw/workspace` (soul files, memory, projects)
 - `claudeBin` = `~/.local/bin/claude`
-- `lockfile` = `/tmp/weiran.lock` (prevents concurrent cron/heartbeat)
-- `promptOut` = `/tmp/weiran-prompt-active.md` (assembled prompt)
+- `lockfile` = `/tmp/miro.lock` (prevents concurrent cron/heartbeat)
+- `promptOut` = `/tmp/miro-prompt-active.md` (assembled prompt)
 - `dbPath` = `<appHome>/data/sessions.db` (SQLite)
 - `tgChatID` = Telegram chat ID (from config.json / openclaw.json / env)
 
@@ -298,7 +298,7 @@ Multi-file Go program (package main, ~29,000 lines across 58 files) with one int
 
 ## Hooks
 
-Shell scripts in `hooks/{cron,heartbeat}.d/` run after each cron/heartbeat session. They receive env vars: `WEIRAN_MODE`, `WEIRAN_WORKSPACE`, `WEIRAN_DB`. Currently `90-safety-extended.sh` does supplementary checks (memory pollution, git health, temp file cleanup, openclaw.json validity).
+Shell scripts in `hooks/{cron,heartbeat}.d/` run after each cron/heartbeat session. They receive env vars: `MIRO_MODE`, `MIRO_WORKSPACE`, `MIRO_DB`. Currently `90-safety-extended.sh` does supplementary checks (memory pollution, git health, temp file cleanup, openclaw.json validity).
 
 ## Review Priority (by risk)
 

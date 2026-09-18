@@ -132,7 +132,7 @@ type telegramBotConfig struct {
 
 func defaultServerConfig() serverConfig {
 	return serverConfig{
-		Host:                 "0.0.0.0",
+		Host:                 "127.0.0.1",
 		Port:                 9847,
 		MaxSessions:          5,
 		IdleTimeoutMin:       30,
@@ -335,9 +335,9 @@ func handleServer(args []string) {
 		os.Exit(1)
 	}
 
-	// Info if binding to non-localhost
+	// Warning if binding to non-localhost
 	if cfg.Host != "127.0.0.1" && cfg.Host != "localhost" && cfg.Host != "::1" {
-		fmt.Fprintf(os.Stderr, "[%s] server: binding to %s (non-localhost)\n", appName, cfg.Host)
+		fmt.Fprintf(os.Stderr, "[%s] server: WARNING: binding to %s (non-localhost) exposes server to the network\n", appName, cfg.Host)
 	}
 
 	sm := newSessionManager(
@@ -1436,7 +1436,7 @@ func handleServer(args []string) {
 		clean := filepath.Clean(raw)
 		// Whitelist: only files under Claude Code's per-pid temp roots.
 		allowed := false
-		for _, prefix := range []string{"/tmp/claude-", "/private/tmp/claude-", "/var/folders/"} {
+		for _, prefix := range []string{"/tmp/claude-", "/private/tmp/claude-"} {
 			if strings.HasPrefix(clean, prefix) {
 				allowed = true
 				break
@@ -1446,21 +1446,43 @@ func handleServer(args []string) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "path not in whitelist"})
 			return
 		}
-		fi, err := os.Stat(clean)
+		// Resolve symlinks to prevent symlink escape
+		resolved, err := filepath.EvalSymlinks(clean)
 		if err != nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
-		if fi.IsDir() {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path is a directory"})
+		resolvedAllowed := false
+		for _, prefix := range []string{"/tmp/claude-", "/private/tmp/claude-"} {
+			if strings.HasPrefix(resolved, prefix) {
+				resolvedAllowed = true
+				break
+			}
+		}
+		if !resolvedAllowed {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "resolved path not in whitelist"})
 			return
 		}
-		f, err := os.Open(clean)
+		// Open with O_NOFOLLOW to ensure the terminal file itself is not a symlink
+		f, err := os.OpenFile(clean, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		if err != nil {
+			if os.IsNotExist(err) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			} else {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid file or symlink: " + err.Error()})
+			}
+			return
+		}
+		defer f.Close()
+		fi, err := f.Stat()
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		defer f.Close()
+		if fi.IsDir() || !fi.Mode().IsRegular() {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path is not a regular file"})
+			return
+		}
 		const maxRead = 64 * 1024
 		size := fi.Size()
 		var offset int64
@@ -2047,8 +2069,11 @@ func handleServer(args []string) {
 	// Wake API — trigger a heartbeat session (replaces OpenClaw /hooks/wake)
 	// Body: {"text": "reason", "soul": true/false}
 	// soul=true (default) → full soul prompt; soul=false → bare claude, lighter context
-	// No auth required — Jira calls this from Docker container
-	mux.HandleFunc("POST /api/wake", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/wake", authMiddleware(cfg.Token, func(w http.ResponseWriter, r *http.Request) {
+		if !rl.allow() {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+			return
+		}
 		var req struct {
 			Text  string `json:"text"`
 			Soul  *bool  `json:"soul"`  // pointer to distinguish missing from false
@@ -2187,12 +2212,11 @@ func handleServer(args []string) {
 			"soul":       soulEnabled,
 			"resumed":    claudeResumeID != "",
 		})
-	})
+	}))
 
 	// Spawn API — dispatch a task to any agent
 	// Body: {"agent": "intern", "task": "处理 #815", "wait": false}
-	// No auth required — external task systems and the agent itself both call this
-	mux.HandleFunc("POST /api/spawn", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/spawn", authMiddleware(cfg.Token, func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Agent string `json:"agent"`
 			Task  string `json:"task"`
@@ -2323,7 +2347,9 @@ func handleServer(args []string) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "spawn failed: " + err.Error()})
 			return
 		}
-		bgCmd.Process.Release()
+		go func() {
+			_ = bgCmd.Wait()
+		}()
 
 		fmt.Fprintf(os.Stderr, "[%s] server: spawned %s (%s) for task: %s\n",
 			appName, agent.Name, agent.ID, truncate(req.Task, 80))
@@ -2335,7 +2361,7 @@ func handleServer(args []string) {
 			"session":  sessionName,
 			"log":      logFile,
 		})
-	})
+	}))
 
 	// ── Prepare Restart (rehydration marker) ──
 	// Called by a session before triggering `make server-restart`.
@@ -2422,16 +2448,21 @@ func handleServer(args []string) {
 	mux.HandleFunc("GET /uploads/", authMiddleware(cfg.Token, func(w http.ResponseWriter, r *http.Request) {
 		// Strip /uploads/ prefix and serve from uploadsDir
 		name := strings.TrimPrefix(r.URL.Path, "/uploads/")
-		if name == "" || strings.Contains(name, "..") {
+		if name == "" || filepath.IsAbs(name) || strings.Contains(name, "..") {
 			http.NotFound(w, r)
 			return
 		}
-		filePath := filepath.Join(uploadsDir, name)
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if isActiveUploadExt(filepath.Ext(name)) {
-			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(name)))
+		cleanUploadsDir := filepath.Clean(uploadsDir)
+		resolved := filepath.Clean(filepath.Join(cleanUploadsDir, filepath.Clean(name)))
+		if !strings.HasPrefix(resolved, cleanUploadsDir+string(filepath.Separator)) {
+			http.NotFound(w, r)
+			return
 		}
-		http.ServeFile(w, r, filePath)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if isActiveUploadExt(filepath.Ext(resolved)) {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(resolved)))
+		}
+		http.ServeFile(w, r, resolved)
 	}))
 
 	// Dynamic branding: derive UI title from binary name (e.g. "weiran" → "Weiran", "soul" → "Soul")

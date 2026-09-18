@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -64,7 +65,7 @@ func fetchOGTags(url string) *ogData {
 	if err != nil {
 		return nil
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; WeiranBot/1.0; +https://github.com/kiyor/soul-cli)")
+	req.Header.Set("User-Agent", fmt.Sprintf("Mozilla/5.0 (compatible; %sBot/1.0; +https://github.com/kiyor/soul-cli)", appName))
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := ogClient.Do(req)

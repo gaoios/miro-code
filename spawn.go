@@ -527,7 +527,9 @@ fi
 		os.Exit(1)
 	}
 
-	bgCmd.Process.Release()
+	// CLI short-lived process exits immediately after returning from cmdSpawnBare;
+	// child process was launched with Setsid and is reparented to init/launchd.
+	_ = bgCmd.Process.Release()
 
 	fmt.Fprintf(os.Stderr, "[%s] spawned %s (async, id=%d)\n", appName, agent.Name, spawnID)
 	fmt.Fprintf(os.Stderr, "[%s]   session: %s\n", appName, sessionName)

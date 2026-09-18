@@ -17,7 +17,7 @@ Located at `<workspace>/scripts/<appName>/config.json` or `<appHome>/data/config
     "codex": {
       "enabled": true,
       "binary": "codex",
-      "model_map": {"implementation": "gpt-5.5"},
+      "model_map": {"implementation": "gpt-6-astra"},
       "dispatch_hint": "Use for implementation-heavy engineering work."
     }
   },
@@ -53,7 +53,7 @@ Located at `<workspace>/scripts/<appName>/config.json` or `<appHome>/data/config
 
 ### Agent backend fields
 
-Supported keys under `agents` are `codex`, `grok`, `kimi`, and `agy`.
+Supported keys under `agents` are `codex`, `grok`, `kimi`, `agy`, and `opencode`.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -70,6 +70,11 @@ mapping and the codex 0.153.x protocol change.
 Antigravity additionally supports `mode` (`plan` or `accept-edits`), `effort`,
 and `dangerously_skip_permissions`. The dangerous permission flag defaults to
 `false` and should only be enabled in trusted workspaces.
+
+`opencode` takes native model IDs (e.g. `opencode-go/glm-5.3-flash`);
+`model_map` values are passed through to `opencode run -m` unchanged. For the
+available model list, run `opencode run` against your own account or check the
+CLI's models output.
 
 ### Tool CLI fields
 
@@ -95,7 +100,7 @@ Entries under `tools` are ordinary executables, not AI backends.
 
 ## Environment Variables
 
-All env vars use `<APPNAME>` as prefix, where `APPNAME` is the binary name in UPPER_CASE (e.g., binary `myai` → prefix `MYAI`).
+All env vars use `<APPNAME>` as prefix, where `APPNAME` is the binary name in UPPER_CASE (e.g., binary `miro` → prefix `MIRO`).
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -111,9 +116,9 @@ The agent name is resolved in priority order:
 
 | Priority | Source | Example |
 |----------|--------|---------|
-| 1 | Build-time ldflags | `-X main.defaultAppName=myai` |
-| 2 | `AGENT_NAME` env var | `AGENT_NAME=myai ./soul-cli` |
-| 3 | Binary filename | `./myai` (from `os.Args[0]`) |
+| 1 | Build-time ldflags | `-X main.defaultAppName=miro` |
+| 2 | `AGENT_NAME` env var | `AGENT_NAME=miro ./soul-cli` |
+| 3 | Binary filename | `./miro` (from `os.Args[0]`) |
 
 ## Directory Structure
 

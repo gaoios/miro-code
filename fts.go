@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -387,8 +388,13 @@ func indexDailyDir(db *sql.DB, dir, datePrefix string) (int, int, error) {
 		var existingHash string
 		var existingMtime int64
 		err = db.QueryRow(`SELECT hash, mtime FROM daily_notes WHERE date = ?`, date).Scan(&existingHash, &existingMtime)
-		if err == nil && existingHash == hash && existingMtime == mtime {
-			skipped++
+		if err == nil {
+			if existingHash == hash && existingMtime == mtime {
+				skipped++
+				continue
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			fmt.Fprintf(os.Stderr, "[%s] fts query daily_notes %s: %v\n", appName, date, err)
 			continue
 		}
 
@@ -629,8 +635,13 @@ func indexSessionContent() (int, int, error) {
 		var existingHash string
 		var existingMtime int64
 		err = db.QueryRow(`SELECT hash, mtime FROM session_content WHERE path = ?`, path).Scan(&existingHash, &existingMtime)
-		if err == nil && existingHash == hash && existingMtime == mtime {
-			skipped++
+		if err == nil {
+			if existingHash == hash && existingMtime == mtime {
+				skipped++
+				continue
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			fmt.Fprintf(os.Stderr, "[%s] fts query session_content %s: %v\n", appName, filepath.Base(path), err)
 			continue
 		}
 

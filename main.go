@@ -1472,8 +1472,16 @@ func delegateToServer(mode string) bool {
 		payload["model"] = defaultModel
 	}
 	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", addr+endpoint, bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if cfg.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.Token)
+	}
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(addr+endpoint, "application/json", bytes.NewReader(body))
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] server not reachable, falling back to subprocess mode\n", appName)
 		return false

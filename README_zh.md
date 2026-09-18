@@ -1,4 +1,4 @@
-# weiran
+# miro
 
 一个为 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 注入灵魂的启动器。让你的 AI 拥有持久的身份、记忆，以及跨会话自我进化的能力。
 
@@ -6,7 +6,7 @@
 
 Claude Code 每次启动都是一张白纸。不记得昨天，不知道自己是谁，也不了解你是谁。每次对话都是陌生人。
 
-**weiran** 解决这个问题。它把一组持久化文件 —— 身份定义、性格、用户画像、每日笔记、长期记忆、技能列表、项目索引 —— 拼装成 system prompt，在启动时注入 Claude Code。效果是：
+**miro** 解决这个问题。它把一组持久化文件 —— 身份定义、性格、用户画像、每日笔记、长期记忆、技能列表、项目索引 —— 拼装成 system prompt，在启动时注入 Claude Code。效果是：
 
 - **有记忆** —— 每日笔记 + SQLite session 数据库 + 向量记忆召回
 - **认识你** —— 你的偏好、项目、时区、沟通风格
@@ -22,7 +22,7 @@ Claude Code 每次启动都是一张白纸。不记得昨天，不知道自己�
 
 ```
 +------------------------------------------+
-|              weiran CLI                   |
+|              miro CLI                   |
 |                                           |
 |  1. 读取灵魂文件 (SOUL.md, USER.md...)     |
 |  2. 读取今天 + 昨天的日志                   |
@@ -57,7 +57,7 @@ workspace/
 │   ├── 2026-04-05.md    <- 今日笔记
 │   ├── 2026-04-04.md    <- 昨日笔记
 │   └── topics/          <- 按主题分类的长期记忆
-└── scripts/weiran/
+└── scripts/miro/
     ├── config.json      <- 你的本地配置（gitignore）
     ├── sessions.db      <- session 摘要数据库
     └── hooks/           <- 运行后钩子
@@ -66,10 +66,10 @@ workspace/
 ## 安装
 
 ```bash
-git clone https://github.com/kiyor/weiran.git
-cd weiran
-go build -o weiran .
-mv weiran ~/go/bin/  # 或放到 PATH 里的任何位置
+git clone https://github.com/kiyor/soul-cli.git
+cd miro
+go build -o miro .
+mv miro ~/go/bin/  # 或放到 PATH 里的任何位置
 
 # 前置条件：安装 Claude Code
 # https://docs.anthropic.com/en/docs/claude-code
@@ -83,10 +83,10 @@ mv weiran ~/go/bin/  # 或放到 PATH 里的任何位置
 mkdir -p ~/.openclaw/workspace/memory
 ```
 
-> **提示：** 不想用 `~/.openclaw`？设置 `WEIRAN_HOME` 环境变量即可：
+> **提示：** 不想用 `~/.openclaw`？设置 `MIRO_HOME` 环境变量即可：
 > ```bash
-> export WEIRAN_HOME=~/my-ai
-> mkdir -p $WEIRAN_HOME/workspace/memory
+> export MIRO_HOME=~/my-ai
+> mkdir -p $MIRO_HOME/workspace/memory
 > ```
 
 ### 2. 写灵魂文件
@@ -116,7 +116,7 @@ cp config.example.json config.json
 | 字段 | 说明 | 也可通过 |
 |------|------|----------|
 | `jiraToken` | 任务系统 token | `JIRA_TOKEN` 环境变量 |
-| `telegramChatID` | Telegram 通知目标 | `WEIRAN_TG_CHAT_ID` 环境变量 |
+| `telegramChatID` | Telegram 通知目标 | `MIRO_TG_CHAT_ID` 环境变量 |
 | `agentName` | AI 人格显示名 | OpenClaw 配置 |
 | `projectRoots` | 扫描 `CLAUDE.md` 的项目目录 | — |
 
@@ -124,55 +124,55 @@ cp config.example.json config.json
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `WEIRAN_HOME` | weiran 数据根目录 | `~/.openclaw` |
-| `WEIRAN_TG_CHAT_ID` | Telegram 聊天 ID | — |
+| `MIRO_HOME` | miro 数据根目录 | `~/.openclaw` |
+| `MIRO_TG_CHAT_ID` | Telegram 聊天 ID | — |
 | `JIRA_TOKEN` | Jira API token | — |
 
 ### 4. 定时任务（可选）
 
 ```crontab
 # 记忆整理 — 扫描近期 session，更新每日笔记
-0 */4 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" weiran --cron >> /tmp/weiran-cron.log 2>&1
+0 */4 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" miro --cron >> /tmp/miro-cron.log 2>&1
 
 # 心跳巡检 — 检查服务健康，处理任务
-30 */2 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" weiran --heartbeat >> /tmp/weiran-heartbeat.log 2>&1
+30 */2 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" miro --heartbeat >> /tmp/miro-heartbeat.log 2>&1
 
 # 自我进化 — 回顾交互，改进灵魂文件（每天早上 10 点）
-0 10 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" weiran --evolve >> /tmp/weiran-evolve.log 2>&1
+0 10 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" miro --evolve >> /tmp/miro-evolve.log 2>&1
 ```
 
-> **注意:** cron 环境下 PATH 有限，需要显式设置才能找到 `claude` 和 `weiran`。根据你的实际安装路径调整。macOS 也可以用 launchd plist 替代 cron。
+> **注意:** cron 环境下 PATH 有限，需要显式设置才能找到 `claude` 和 `miro`。根据你的实际安装路径调整。macOS 也可以用 launchd plist 替代 cron。
 
 ## 使用
 
 ```bash
-weiran                         # 交互式会话（带灵魂）
-weiran -p "检查磁盘使用"        # 一次性任务
-weiran --cron                  # 记忆整理
-weiran --heartbeat             # 心跳巡检
-weiran --evolve                # 自我进化
+miro                         # 交互式会话（带灵魂）
+miro -p "检查磁盘使用"        # 一次性任务
+miro --cron                  # 记忆整理
+miro --heartbeat             # 心跳巡检
+miro --evolve                # 自我进化
 
 # 工具命令
-weiran status                  # 快速健康检查
-weiran doctor                  # 深度诊断
-weiran config                  # 显示当前配置
-weiran log                     # 查看今日笔记
-weiran diff                    # 显示灵魂文件变更
-weiran clean                   # 清理临时目录
-weiran notify "消息"            # 发 Telegram 消息
-weiran notify-photo <url> [配文]
+miro status                  # 快速健康检查
+miro doctor                  # 深度诊断
+miro config                  # 显示当前配置
+miro log                     # 查看今日笔记
+miro diff                    # 显示灵魂文件变更
+miro clean                   # 清理临时目录
+miro notify "消息"            # 发 Telegram 消息
+miro notify-photo <url> [配文]
 
 # Session 数据库
-weiran db stats                # 统计
-weiran db search <关键词>       # 搜索摘要
-weiran db pending              # 待处理的 session
-weiran db gc                   # 清理已删除的记录
+miro db stats                # 统计
+miro db search <关键词>       # 搜索摘要
+miro db pending              # 待处理的 session
+miro db gc                   # 清理已删除的记录
 
 # 版本管理
-weiran build                   # 安全编译（备份 -> 编译 -> 测试 -> 部署，失败回滚）
-weiran versions                # 查看历史版本
-weiran rollback [N]            # 回滚到第 N 个版本
-weiran update                  # git pull + 安全编译
+miro build                   # 安全编译（备份 -> 编译 -> 测试 -> 部署，失败回滚）
+miro versions                # 查看历史版本
+miro rollback [N]            # 回滚到第 N 个版本
+miro update                  # git pull + 安全编译
 ```
 
 ## 架构
@@ -199,13 +199,13 @@ weiran update                  # git pull + 安全编译
 - **子进程跑 cron** —— 定时任务用 `exec.Command`，结束后执行 post-hooks
 - **Token 预算** —— prompt 拼装时追踪各段 token 占比，超 100k 告警并显示明细
 - **安全防护** —— 拒绝 symlink 的 CLAUDE.md（防 prompt 注入），清洗 Telegram 消息中的不受信文本，post-hook 检测 git diff 中的泄漏密钥
-- **自我更新** —— `weiran build` 编译、测试、备份、部署一条龙，失败自动回滚，保留 3 个历史版本
+- **自我更新** —— `miro build` 编译、测试、备份、部署一条龙，失败自动回滚，保留 3 个历史版本
 
 ## 灵魂系统
 
 灵魂文件就是 markdown。没有 schema，没有 DSL —— 写你想让 AI 成为的样子。
 
-weiran 读取它们，拼成 system prompt，通过 `--append-system-prompt-file` 传给 Claude Code。Claude Code 自身的 system prompt 不受影响，你的灵魂文件是叠加的。
+miro 读取它们，拼成 system prompt，通过 `--append-system-prompt-file` 传给 Claude Code。Claude Code 自身的 system prompt 不受影响，你的灵魂文件是叠加的。
 
 | 文件 | 作用 |
 |------|------|
@@ -233,9 +233,9 @@ weiran 读取它们，拼成 system prompt，通过 `--append-system-prompt-file
 `hooks/{cron,heartbeat,evolve}.d/` 下的 shell 脚本在每次自动化 session 后执行。环境变量：
 
 ```bash
-WEIRAN_MODE=cron|heartbeat|evolve
-WEIRAN_WORKSPACE=/path/to/workspace
-WEIRAN_DB=/path/to/sessions.db
+MIRO_MODE=cron|heartbeat|evolve
+MIRO_WORKSPACE=/path/to/workspace
+MIRO_DB=/path/to/sessions.db
 ```
 
 内置 post-hook：
@@ -245,7 +245,7 @@ WEIRAN_DB=/path/to/sessions.db
 
 ## OpenClaw 集成
 
-weiran 为 [OpenClaw](https://github.com/nicepkg/openclaw) 生态而生。如果你在用 OpenClaw：
+miro 为 [OpenClaw](https://github.com/nicepkg/openclaw) 生态而生。如果你在用 OpenClaw：
 
 - 工作空间路径和 agent 名称从 `openclaw.json` 读取
 - Telegram bot token 从 OpenClaw 凭据读取

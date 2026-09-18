@@ -2,7 +2,7 @@
 
 > Branch: `feat/codex-backend`
 > 起点: 2026-04-27
-> 目标: 让 soul-cli (weiran) 能用 OpenAI codex 的 `app-server` JSON-RPC 协议作为备份心脏，与现有 Claude Code stream-json 心脏并存。
+> 目标: 让 soul-cli (miro) 能用 OpenAI codex 的 `app-server` JSON-RPC 协议作为备份心脏，与现有 Claude Code stream-json 心脏并存。
 
 ## 背景
 
@@ -143,7 +143,7 @@ CC 的 hook 模型 vs codex 的 server-initiated request：
 
 ### Phase 5 — 配置 / 路由
 
-**新增 config（`~/.config/weiran/config.json`）**：
+**新增 config（`~/.config/miro/config.json`）**：
 ```json
 {
   "backends": {
@@ -170,18 +170,18 @@ POST /api/sessions
 }
 ```
 
-**weiran spawn**：`weiran spawn --backend codex "task..."`
+**miro spawn**：`miro spawn --backend codex "task..."`
 
 ### Phase 6 — 测试 + 烟测
 
 - **单测**：`codex_jsonrpc_test.go` (mock conn)、`codex_backend_test.go` (mock client)、`unified_events_test.go`（CC translator round-trip）
 - **集成测试脚本**：`scripts/codex-smoke.sh` — 启动真 codex app-server，跑一个 thread/start + turn/start + 验证 item/agentMessage/delta 流
 - **回归**：`go test ./...` 全绿
-- **真跑一轮**：`weiran spawn --backend codex "say hi in one word"` 跑通
+- **真跑一轮**：`miro spawn --backend codex "say hi in one word"` 跑通
 
 ### Phase 7 — 观测 / Runbook
 
-- metrics 加 `weiran_backend_kind`（label: cc/codex）+ `weiran_codex_jsonrpc_duration_ms`
+- metrics 加 `miro_backend_kind`（label: cc/codex）+ `miro_codex_jsonrpc_duration_ms`
 - `docs/codex-backend-runbook.md` — 怎么切换、怎么排错、codex CLI 没装时降级路径
 
 ## 风险 & 缓解
@@ -196,7 +196,7 @@ POST /api/sessions
 ## 验收标准（Phase 6 结束）
 
 - [ ] `go test ./...` 全绿（包括新增测试）
-- [ ] `weiran spawn --backend codex "say hi"` 能启动 → 收到 agent 回复 → session 正常 destroy
+- [ ] `miro spawn --backend codex "say hi"` 能启动 → 收到 agent 回复 → session 正常 destroy
 - [ ] 心跳脚本 spawn 一个 codex backend session 能完成一轮巡检
 - [ ] CC backend 行为零回归（同样的 spawn 命令，输出和现在一致）
 - [ ] Telegram bot 收到 codex backend session 的回复正常（SSE 透明性）

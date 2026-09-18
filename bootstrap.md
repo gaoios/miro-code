@@ -85,14 +85,14 @@ fi
 
 Claude Code needs a credential. Check which is available:
 
-- `CLAUDE_CODE_OAUTH_TOKEN` — OAuth token (`sk-ant-oat01-...`), authenticates as `oauth_token`
+- `CLAUDE_CODE_OAUTH_TOKEN` — OAuth token (`<YOUR_ANTHROPIC_TOKEN>`), authenticates as `oauth_token`
 - `ANTHROPIC_API_KEY` — standard API key (`sk-ant-api03-...`), authenticates as `api_key`
 
 If neither is set, stop and tell the user:
 
 > No Anthropic credential found. Export one before running this bootstrap:
 > ```
-> export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..."   # OAuth token (preferred)
+> export CLAUDE_CODE_OAUTH_TOKEN="<YOUR_ANTHROPIC_TOKEN>"   # OAuth token (preferred)
 > # or
 > export ANTHROPIC_API_KEY="sk-ant-api03-..."          # standard API key
 > ```

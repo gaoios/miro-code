@@ -79,7 +79,7 @@ func TestOpencodeWorkerDispatchRule(t *testing.T) {
 	codexEnabled, grokEnabled, kimiEnabled, agyEnabled = false, false, false, false
 	opencodeEnabled, opencodeDispatchHint, toolCLIs = true, "Use for bounded verification.", nil
 	rules := buildWorkerDispatchRules()
-	for _, want := range []string{"DeepSeek-backed execution and verification worker", "soul spawn --bare --backend opencode --model opencode-go/deepseek-flash", "Use for bounded verification."} {
+	for _, want := range []string{"opencode — multi-model execution and verification worker", "soul spawn --bare --backend opencode --model <native-model-id>", "agents.opencode.model_map", "Use for bounded verification."} {
 		if !strings.Contains(rules, want) {
 			t.Fatalf("dispatch rules missing %q", want)
 		}

@@ -111,7 +111,7 @@ soul-cli operates in several modes:
 ### Interactive (default)
 
 ```bash
-myai
+miro
 ```
 
 Opens Claude Code with your soul injected. The launcher **replaces itself** (`syscall.Exec`) — no proxy overhead, Claude gets your full terminal.
@@ -119,7 +119,7 @@ Opens Claude Code with your soul injected. The launcher **replaces itself** (`sy
 ### One-Shot
 
 ```bash
-myai -p "check disk usage"
+miro -p "check disk usage"
 ```
 
 Runs a single task with soul context, then exits.
@@ -127,8 +127,8 @@ Runs a single task with soul context, then exits.
 ### Resume
 
 ```bash
-myai -r              # TUI picker for recent sessions
-myai -r abc123       # Resume specific session
+miro -r              # TUI picker for recent sessions
+miro -r abc123       # Resume specific session
 ```
 
 ### Automated Modes
@@ -137,16 +137,16 @@ These run Claude Code as a subprocess (not interactive) and execute post-hooks a
 
 | Mode | Command | Purpose |
 |------|---------|---------|
-| **Cron** | `myai --cron` | Scan recent sessions, update daily notes, extract patterns |
-| **Heartbeat** | `myai --heartbeat` | Health check services, process tasks, monitor patterns |
-| **Evolve** | `myai --evolve` | Review interactions, improve soul files, fix bugs |
+| **Cron** | `miro --cron` | Scan recent sessions, update daily notes, extract patterns |
+| **Heartbeat** | `miro --heartbeat` | Health check services, process tasks, monitor patterns |
+| **Evolve** | `miro --evolve` | Review interactions, improve soul files, fix bugs |
 
 See [Automation Guide](guides/automation.md) for setup instructions.
 
 ### Server
 
 ```bash
-myai server --token my-secret
+miro server --token my-secret
 ```
 
 Persistent HTTP server managing multiple Claude Code sessions, with a built-in Web UI. See [Server Mode Guide](guides/server.md).
@@ -176,7 +176,7 @@ This means you can run **multiple independent agents** from the same codebase. S
 
 The assembled prompt has a soft budget of **100k tokens** (Claude's context window). soul-cli estimates token usage per section (~2.5 chars/token heuristic) and warns if you exceed the budget.
 
-Run `myai prompt` to see the assembled prompt with per-section token stats:
+Run `miro prompt` to see the assembled prompt with per-section token stats:
 
 ```
 Section                 Tokens (est.)

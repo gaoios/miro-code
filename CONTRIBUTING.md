@@ -1,12 +1,12 @@
-# Contributing to weiran
+# Contributing to miro
 
 ## Setup
 
 1. Clone the repo and build:
    ```bash
-   git clone https://github.com/kiyor/weiran.git
-   cd weiran
-   go build -o weiran .
+   git clone https://github.com/kiyor/soul-cli.git
+   cd miro
+   go build -o miro .
    ```
 
 2. Create your workspace (if you don't have OpenClaw):

@@ -4,7 +4,7 @@ A soul-aware launcher for [Claude Code](https://docs.anthropic.com/en/docs/claud
 
 Claude Code starts fresh every time — no memory, no personality, no idea who you are. **miro-code** fixes this by assembling markdown files (identity, personality, memory, skills) into a system prompt injected at launch.
 
-> 📖 **使用教程（中文）**：[docs/tutorial.zh.md](docs/tutorial.zh.md) · GitBook 版：https://xlegao.gitbook.io/mirobiz/
+> 📖 **使用教程（中文）**：[docs/miro/tutorial.zh.md](docs/miro/tutorial.zh.md) · GitBook 版：https://xlegao.gitbook.io/mirobiz/
 >
 > Forked & extended from [kiyor/soul-cli](https://github.com/kiyor/soul-cli) — upstream project by @kiyor.
 
@@ -45,7 +45,7 @@ On first launch, the AI automatically enriches its personality based on your con
 ### AI-Friendly (No Stdin Required)
 
 ```bash
-myai init --archetype engineer --name kuro --owner alex --tz America/Los_Angeles
+miro init --archetype engineer --name kuro --owner alex --tz America/Los_Angeles
 ```
 
 All flags provided = zero interactive prompts. Perfect for scripting or AI-driven setup.
@@ -57,7 +57,7 @@ All flags provided = zero interactive prompts. Perfect for scripting or AI-drive
 Don't want to set up manually? Feed the bootstrap guide to Claude Code and let it do everything:
 
 ```bash
-export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-..."  # your OAuth token first
+export CLAUDE_CODE_OAUTH_TOKEN="<YOUR_ANTHROPIC_TOKEN>"  # your OAuth token first
 claude -p "$(curl -sfL https://raw.githubusercontent.com/kiyor/soul-cli/main/bootstrap.md)" --dangerously-skip-permissions
 ```
 
@@ -77,7 +77,7 @@ Soul Files + Memory + Skills  →  soul-cli  →  Claude Code (with soul)
 - **`MEMORY.md`** + daily notes — what happened yesterday, long-term knowledge
 - **`AGENTS.md`** — behavioral rules and guardrails
 
-The binary name determines identity: build as `myai`, `jarvis`, or `atlas` — all paths, env vars, and logs derive from it.
+The binary name determines identity: build as `miro`, `jarvis`, or `atlas` — all paths, env vars, and logs derive from it.
 
 ## Features
 
@@ -95,14 +95,14 @@ The binary name determines identity: build as `myai`, `jarvis`, or `atlas` — a
 ## Usage
 
 ```bash
-myai                         # interactive session
-myai -p "check disk usage"   # one-shot task
-myai -r                      # resume previous session
-myai server --token secret   # HTTP server + Web UI
-myai --cron                  # memory consolidation
-myai --heartbeat             # health check patrol
-myai --evolve                # self-improvement
-myai status                  # quick diagnostics
+miro                         # interactive session
+miro -p "check disk usage"   # one-shot task
+miro -r                      # resume previous session
+miro server --token secret   # HTTP server + Web UI
+miro --cron                  # memory consolidation
+miro --heartbeat             # health check patrol
+miro --evolve                # self-improvement
+miro status                  # quick diagnostics
 ```
 
 ### Multi-CLI Agent Workspace
@@ -112,9 +112,9 @@ Web UI. Claude remains the default supervisor, while enabled workers receive
 bounded tasks through `spawn --bare`:
 
 ```bash
-myai server
-myai spawn --bare --backend codex --model gpt-5.5 --project "$PWD" "Implement and test the change" --wait
-myai spawn --bare --backend grok --project "$PWD" "Review the implementation independently" --wait
+miro server
+miro spawn --bare --backend codex --model gpt-6-astra --project "$PWD" "Implement and test the change" --wait
+miro spawn --bare --backend grok --project "$PWD" "Review the implementation independently" --wait
 ```
 
 Non-conversational CLIs are registered separately under `tools`. They run in

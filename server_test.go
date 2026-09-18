@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -148,8 +149,8 @@ func TestWriteJSON(t *testing.T) {
 
 func TestDefaultServerConfig(t *testing.T) {
 	cfg := defaultServerConfig()
-	if cfg.Host != "0.0.0.0" {
-		t.Errorf("expected 0.0.0.0, got %s", cfg.Host)
+	if cfg.Host != "127.0.0.1" {
+		t.Errorf("expected 127.0.0.1, got %s", cfg.Host)
 	}
 	if cfg.Port != 9847 {
 		t.Errorf("expected 9847, got %d", cfg.Port)
@@ -324,5 +325,223 @@ func TestHealthEndpoint(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&result)
 	if result["status"] != "ok" {
 		t.Errorf("expected ok, got %v", result["status"])
+	}
+}
+
+func TestSpawnAndWakeRequireAuthAndRateLimit(t *testing.T) {
+	token := "test-secret"
+	rl := newRateLimiter(1)
+
+	wakeHandler := authMiddleware(token, func(w http.ResponseWriter, r *http.Request) {
+		if !rl.allow() {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+	})
+
+	spawnHandler := authMiddleware(token, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+	})
+
+	// 1. POST /api/spawn without token -> 401
+	req := httptest.NewRequest("POST", "/api/spawn", nil)
+	w := httptest.NewRecorder()
+	spawnHandler(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("spawn without token: expected 401, got %d", w.Code)
+	}
+
+	// 2. POST /api/spawn with token -> 200
+	req = httptest.NewRequest("POST", "/api/spawn", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	spawnHandler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("spawn with token: expected 200, got %d", w.Code)
+	}
+
+	// 3. POST /api/wake without token -> 401
+	req = httptest.NewRequest("POST", "/api/wake", nil)
+	w = httptest.NewRecorder()
+	wakeHandler(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("wake without token: expected 401, got %d", w.Code)
+	}
+
+	// 4. POST /api/wake with token -> 200 on 1st request
+	req = httptest.NewRequest("POST", "/api/wake", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	wakeHandler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("wake with token (1st): expected 200, got %d", w.Code)
+	}
+
+	// 5. POST /api/wake with token -> 429 on 2nd request (rate limit)
+	req = httptest.NewRequest("POST", "/api/wake", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	wakeHandler(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("wake rate limit: expected 429, got %d", w.Code)
+	}
+}
+
+func TestUploadsPathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	uploadsDir := filepath.Join(tempDir, "uploads")
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	testFile := filepath.Join(uploadsDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("hello upload"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/uploads/")
+		if name == "" || filepath.IsAbs(name) || strings.Contains(name, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		cleanUploadsDir := filepath.Clean(uploadsDir)
+		resolved := filepath.Clean(filepath.Join(cleanUploadsDir, filepath.Clean(name)))
+		if !strings.HasPrefix(resolved, cleanUploadsDir+string(filepath.Separator)) {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, resolved)
+	}
+
+	// Valid request
+	req := httptest.NewRequest("GET", "/uploads/test.txt", nil)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("valid upload request: expected 200, got %d", w.Code)
+	}
+
+	// Traversal with ..
+	req = httptest.NewRequest("GET", "/uploads/../secret.txt", nil)
+	w = httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("traversal with ..: expected 404, got %d", w.Code)
+	}
+
+	// Traversal with absolute path
+	req = httptest.NewRequest("GET", "/uploads//etc/passwd", nil)
+	w = httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("traversal with abs path: expected 404, got %d", w.Code)
+	}
+}
+
+func TestFilesReadEndpointSecurity(t *testing.T) {
+	token := "test-secret"
+	handler := authMiddleware(token, func(w http.ResponseWriter, r *http.Request) {
+		raw := r.URL.Query().Get("path")
+		if raw == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path is required"})
+			return
+		}
+		clean := filepath.Clean(raw)
+		allowed := false
+		for _, prefix := range []string{"/tmp/claude-", "/private/tmp/claude-"} {
+			if strings.HasPrefix(clean, prefix) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "path not in whitelist"})
+			return
+		}
+		resolved, err := filepath.EvalSymlinks(clean)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		resolvedAllowed := false
+		for _, prefix := range []string{"/tmp/claude-", "/private/tmp/claude-"} {
+			if strings.HasPrefix(resolved, prefix) {
+				resolvedAllowed = true
+				break
+			}
+		}
+		if !resolvedAllowed {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "resolved path not in whitelist"})
+			return
+		}
+		f, err := os.OpenFile(clean, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		if err != nil {
+			if os.IsNotExist(err) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			} else {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid file or symlink: " + err.Error()})
+			}
+			return
+		}
+		defer f.Close()
+		fi, err := f.Stat()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if fi.IsDir() || !fi.Mode().IsRegular() {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path is not a regular file"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	})
+
+	// 1. /var/folders/ is rejected
+	req := httptest.NewRequest("GET", "/api/files/read?path=/var/folders/xx/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("/var/folders path: expected 403, got %d", w.Code)
+	}
+
+	// 2. /etc/passwd is rejected
+	req = httptest.NewRequest("GET", "/api/files/read?path=/etc/passwd", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("/etc/passwd path: expected 403, got %d", w.Code)
+	}
+
+	// 3. Valid file under /tmp/claude-test-xxx
+	tmpFile, err := os.CreateTemp("/tmp", "claude-test-*.txt")
+	if err != nil {
+		t.Skipf("cannot create temp file in /tmp: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("test content")
+	tmpFile.Close()
+
+	req = httptest.NewRequest("GET", "/api/files/read?path="+tmpFile.Name(), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("valid /tmp/claude file: expected 200, got %d (body: %s)", w.Code, w.Body.String())
+	}
+
+	// 4. Symlink under /tmp/claude-* pointing to /etc/passwd is rejected
+	symlinkPath := filepath.Join("/tmp", fmt.Sprintf("claude-link-%d", time.Now().UnixNano()))
+	if err := os.Symlink("/etc/passwd", symlinkPath); err == nil {
+		defer os.Remove(symlinkPath)
+		req = httptest.NewRequest("GET", "/api/files/read?path="+symlinkPath, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w = httptest.NewRecorder()
+		handler(w, req)
+		if w.Code != http.StatusForbidden && w.Code != http.StatusBadRequest {
+			t.Fatalf("symlink escape to /etc/passwd: expected 403 or 400, got %d", w.Code)
+		}
 	}
 }

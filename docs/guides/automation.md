@@ -20,7 +20,7 @@ All three modes:
 ## Cron Mode
 
 ```bash
-myai --cron
+miro --cron
 ```
 
 ### What it does
@@ -44,7 +44,7 @@ After cron completes:
 ## Heartbeat Mode
 
 ```bash
-myai --heartbeat
+miro --heartbeat
 ```
 
 ### What it does
@@ -76,7 +76,7 @@ Create `data/services.json`:
 ## Evolve Mode
 
 ```bash
-myai --evolve
+miro --evolve
 ```
 
 ### What it does
@@ -112,36 +112,36 @@ Evolve #4 Summary:
 
     ```crontab
     # Memory consolidation — every 4 hours
-    0 */4 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" myai --cron >> /tmp/myai-cron.log 2>&1
+    0 */4 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" miro --cron >> /tmp/miro-cron.log 2>&1
 
     # Heartbeat — every 2 hours
-    30 */2 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" myai --heartbeat >> /tmp/myai-heartbeat.log 2>&1
+    30 */2 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" miro --heartbeat >> /tmp/miro-heartbeat.log 2>&1
 
     # Self-evolution — daily at 10am
-    0 10 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" myai --evolve >> /tmp/myai-evolve.log 2>&1
+    0 10 * * * PATH="$HOME/go/bin:$HOME/.local/bin:$PATH" miro --evolve >> /tmp/miro-evolve.log 2>&1
     ```
 
 === "macOS launchd"
 
-    ```xml title="~/Library/LaunchAgents/com.myai.cron.plist"
+    ```xml title="~/Library/LaunchAgents/com.miro.cron.plist"
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
       "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
     <dict>
       <key>Label</key>
-      <string>com.myai.cron</string>
+      <string>com.miro.cron</string>
       <key>ProgramArguments</key>
       <array>
-        <string>/usr/local/bin/myai</string>
+        <string>/usr/local/bin/miro</string>
         <string>--cron</string>
       </array>
       <key>StartInterval</key>
       <integer>14400</integer>
       <key>StandardOutPath</key>
-      <string>/tmp/myai-cron.log</string>
+      <string>/tmp/miro-cron.log</string>
       <key>StandardErrorPath</key>
-      <string>/tmp/myai-cron.log</string>
+      <string>/tmp/miro-cron.log</string>
     </dict>
     </plist>
     ```

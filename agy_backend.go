@@ -123,11 +123,17 @@ func (kb *agyBackend) sendMessage(content string) error {
 }
 
 func (kb *agyBackend) runTurn(ctx context.Context, turnID, content string) {
+	var turnError string
 	defer func() {
 		kb.mu.Lock()
 		kb.running = false
 		kb.cancel = nil
 		kb.mu.Unlock()
+		if turnError != "" {
+			kb.emitError(turnID, turnError)
+		} else {
+			kb.emit(UnifiedEvent{Kind: UEvtTurnCompleted, TurnID: turnID, Payload: mustMarshalRaw(UnifiedTurnPayload{Status: "ok"})})
+		}
 	}()
 	kb.emit(UnifiedEvent{Kind: UEvtTurnStarted, TurnID: turnID, Payload: mustMarshalRaw(UnifiedTurnPayload{Status: "running"})})
 
@@ -145,18 +151,24 @@ func (kb *agyBackend) runTurn(ctx context.Context, turnID, content string) {
 		if looksLikeRateLimit(strings.ToLower(message)) {
 			kb.markRateLimited()
 		}
-		kb.emitError(turnID, message)
+		turnError = message
 		return
 	}
 	text, err := parseAgyTextOutput(stdout)
 	if err != nil {
-		kb.emitError(turnID, err.Error())
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = err.Error()
+		}
+		if looksLikeRateLimit(strings.ToLower(message)) {
+			kb.markRateLimited()
+		}
+		turnError = message
 		return
 	}
 	itemID := turnID + "-item-1"
 	kb.emit(UnifiedEvent{Kind: UEvtItemStarted, TurnID: turnID, ItemID: itemID, ItemKind: UItemAgentMessage, Payload: mustMarshalRaw(UnifiedItemPayload{})})
 	kb.emit(UnifiedEvent{Kind: UEvtItemCompleted, TurnID: turnID, ItemID: itemID, ItemKind: UItemAgentMessage, Payload: mustMarshalRaw(UnifiedItemPayload{Result: mustMarshalRaw(map[string]any{"text": text})})})
-	kb.emit(UnifiedEvent{Kind: UEvtTurnCompleted, TurnID: turnID, Payload: mustMarshalRaw(UnifiedTurnPayload{Status: "ok"})})
 }
 
 func parseAgyTextOutput(raw []byte) (string, error) {

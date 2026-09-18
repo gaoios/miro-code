@@ -316,3 +316,32 @@ func TestStripFrontmatter(t *testing.T) {
 		}
 	}
 }
+
+func TestFTSIndexHandlesErrNoRowsAndDBErrors(t *testing.T) {
+	cleanup := setupFTSTest(t)
+	defer cleanup()
+
+	// Write a daily note
+	dailyFile := filepath.Join(workspace, "memory", "daily", "2026-09-18.md")
+	if err := os.WriteFile(dailyFile, []byte("Today I tested FTS index error handling"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. First index when DB has no row yet (ErrNoRows path) -> should insert 1
+	added, skipped, err := indexDailyNotes()
+	if err != nil {
+		t.Fatalf("first indexDailyNotes failed: %v", err)
+	}
+	if added != 1 || skipped != 0 {
+		t.Fatalf("first index: expected added=1, skipped=0; got added=%d, skipped=%d", added, skipped)
+	}
+
+	// 2. Second index unchanged file -> should skip 1
+	added, skipped, err = indexDailyNotes()
+	if err != nil {
+		t.Fatalf("second indexDailyNotes failed: %v", err)
+	}
+	if added != 0 || skipped != 1 {
+		t.Fatalf("second index: expected added=0, skipped=1; got added=%d, skipped=%d", added, skipped)
+	}
+}

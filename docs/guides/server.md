@@ -6,14 +6,14 @@ soul-cli includes a built-in HTTP server that manages persistent Claude Code ses
 
 ```bash
 # Token is required for authentication
-myai server --token my-secret
+miro server --token my-secret
 
 # Custom host and port
-myai server --host 0.0.0.0 --port 9847
+miro server --host 0.0.0.0 --port 9847
 
 # Or use environment variable
-export MYAI_SERVER_TOKEN=my-secret
-myai server
+export MIRO_SERVER_TOKEN=my-secret
+miro server
 ```
 
 Open `http://localhost:9847/?token=my-secret` in your browser.
@@ -151,17 +151,17 @@ When enabled, incoming Telegram messages create or route to sessions, and respon
 
 === "macOS (launchd)"
 
-    ```xml title="~/Library/LaunchAgents/com.myai.server.plist"
+    ```xml title="~/Library/LaunchAgents/com.miro.server.plist"
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
       "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
     <dict>
       <key>Label</key>
-      <string>com.myai.server</string>
+      <string>com.miro.server</string>
       <key>ProgramArguments</key>
       <array>
-        <string>/usr/local/bin/myai</string>
+        <string>/usr/local/bin/miro</string>
         <string>server</string>
       </array>
       <key>RunAtLoad</key>
@@ -169,20 +169,20 @@ When enabled, incoming Telegram messages create or route to sessions, and respon
       <key>KeepAlive</key>
       <true/>
       <key>StandardOutPath</key>
-      <string>/tmp/myai-server.log</string>
+      <string>/tmp/miro-server.log</string>
       <key>StandardErrorPath</key>
-      <string>/tmp/myai-server.log</string>
+      <string>/tmp/miro-server.log</string>
     </dict>
     </plist>
     ```
 
     ```bash
-    launchctl load ~/Library/LaunchAgents/com.myai.server.plist
+    launchctl load ~/Library/LaunchAgents/com.miro.server.plist
     ```
 
 === "Linux (systemd)"
 
-    ```ini title="/etc/systemd/system/myai-server.service"
+    ```ini title="/etc/systemd/system/miro-server.service"
     [Unit]
     Description=soul-cli server
     After=network.target
@@ -190,7 +190,7 @@ When enabled, incoming Telegram messages create or route to sessions, and respon
     [Service]
     Type=simple
     User=youruser
-    ExecStart=/usr/local/bin/myai server
+    ExecStart=/usr/local/bin/miro server
     Restart=always
     RestartSec=5
 
@@ -199,7 +199,7 @@ When enabled, incoming Telegram messages create or route to sessions, and respon
     ```
 
     ```bash
-    sudo systemctl enable --now myai-server
+    sudo systemctl enable --now miro-server
     ```
 
 ## Reverse Proxy

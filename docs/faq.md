@@ -35,7 +35,7 @@ claude --version
 For cron jobs, make sure PATH includes the Claude binary location:
 
 ```crontab
-0 */4 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" myai --cron
+0 */4 * * * PATH="$HOME/.local/bin:$HOME/go/bin:$PATH" miro --cron
 ```
 
 ### Can I install without Go?
@@ -46,14 +46,14 @@ Not currently. soul-cli is distributed as source. You need Go 1.21+ to build it.
 
 ```bash
 cd /path/to/soul-cli
-myai update    # git pull + safe build with rollback
+miro update    # git pull + safe build with rollback
 ```
 
 Or manually:
 
 ```bash
 git pull
-myai build     # safe compile with backup
+miro build     # safe compile with backup
 ```
 
 ## Soul Files
@@ -68,7 +68,7 @@ Yes, during `--evolve` mode. The AI reviews recent interactions and makes small 
 
 ### My prompt is too large
 
-Run `myai prompt` to see per-section token usage. Common culprits:
+Run `miro prompt` to see per-section token usage. Common culprits:
 
 - `TOOLS.md` with too many credentials → move rarely-used ones to memory topics
 - Daily notes that are too verbose → the cron mode will trim them
@@ -87,20 +87,20 @@ Yes. Write in any language. The AI will respond in the language of your soul fil
 Two ways:
 
 1. **Manually** — Write `memory/YYYY-MM-DD.md` yourself
-2. **Automatically** — Run `myai --cron`, which scans recent Claude Code sessions and generates summaries
+2. **Automatically** — Run `miro --cron`, which scans recent Claude Code sessions and generates summaries
 
 ### My memory is getting too big
 
-- Run `myai db gc` to clean up deleted sessions
-- Run `myai clean` to remove old temp directories
+- Run `miro db gc` to clean up deleted sessions
+- Run `miro clean` to remove old temp directories
 - Promote important daily notes to topic files, then delete old daily notes
 - Keep `MEMORY.md` under 200 lines
 
 ### How do I search past conversations?
 
 ```bash
-myai db search "kubernetes"    # search session summaries
-myai ss kubernetes             # interactive TUI browser
+miro db search "kubernetes"    # search session summaries
+miro ss kubernetes             # interactive TUI browser
 ```
 
 ## Server Mode
@@ -133,8 +133,8 @@ Common issues:
 
 ### How do I know if evolve changed something?
 
-- Check `myai diff` for uncommitted changes
-- Check today's daily notes (`myai log`) — evolve records what it changed
+- Check `miro diff` for uncommitted changes
+- Check today's daily notes (`miro log`) — evolve records what it changed
 - If Telegram is configured, evolve sends a report
 
 ## Troubleshooting
@@ -144,15 +144,15 @@ Common issues:
 A previous run crashed without cleaning up. Check if another instance is actually running:
 
 ```bash
-ps aux | grep myai
+ps aux | grep miro
 ```
 
 If nothing is running, remove the stale lock:
 
 ```bash
-rm /tmp/myai.lock    # or rmdir /tmp/myai.lock.d for NFS
+rm /tmp/miro.lock    # or rmdir /tmp/miro.lock.d for NFS
 ```
 
 ### "token budget exceeded"
 
-Your assembled prompt is too large. Run `myai prompt` to identify the largest sections and trim them. See [My prompt is too large](#my-prompt-is-too-large) above.
+Your assembled prompt is too large. Run `miro prompt` to identify the largest sections and trim them. See [My prompt is too large](#my-prompt-is-too-large) above.

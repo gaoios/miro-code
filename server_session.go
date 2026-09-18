@@ -1216,6 +1216,18 @@ func (sm *sessionManager) createSessionWithOpts(opts sessionCreateOpts) (*server
 	}
 
 	sm.mu.Lock()
+	if category == CategoryInteractive && sm.maxSessions > 0 {
+		interactiveCount := 0
+		for _, s := range sm.sessions {
+			if s.Category == CategoryInteractive {
+				interactiveCount++
+			}
+		}
+		if interactiveCount >= sm.maxSessions {
+			sm.mu.Unlock()
+			return nil, fmt.Errorf("max interactive sessions limit reached (%d)", sm.maxSessions)
+		}
+	}
 	// Register immediately to hold the slot (status="starting")
 	sm.sessions[id] = sess
 	sm.mu.Unlock()
@@ -1447,6 +1459,7 @@ func (sm *sessionManager) setChrome(id string, enabled bool) error {
 		return nil // no-op
 	}
 	oldProc := sess.process
+	sess.process = nil
 	// Preserve conversation history across the reload. Without ResumeID the
 	// respawned claude process would start a fresh cc session, orphaning the
 	// existing jsonl and breaking the in-progress conversation.
@@ -1555,6 +1568,7 @@ func (sm *sessionManager) setMode(id, mode string) error {
 		return nil
 	}
 	oldProc := sess.process
+	sess.process = nil
 	resumeID := sess.ClaudeSID // preserve conversation history across reload
 	existingPromptFile := sess.promptFile
 	workDir := sess.Project
@@ -1652,6 +1666,7 @@ func (sm *sessionManager) setModel(id string, model string) error {
 		return nil // no-op
 	}
 	oldProc := sess.process
+	sess.process = nil
 	resumeID := sess.ClaudeSID // preserve conversation history
 	opts := sessionOpts{
 		WorkDir:          sess.Project,
@@ -1716,8 +1731,13 @@ func (sm *sessionManager) destroySession(id string) error {
 	sm.mu.Unlock()
 
 	sess.setStatus("stopped")
-	if sess.process != nil && sess.process.alive() {
-		sess.process.shutdown()
+	sess.mu.Lock()
+	proc := sess.process
+	sess.process = nil
+	sess.mu.Unlock()
+
+	if proc != nil && proc.alive() {
+		proc.shutdown()
 	}
 
 	// Mark as ended in persistent DB
@@ -1803,8 +1823,13 @@ func (sm *sessionManager) destroySessionForShutdown(id string) {
 	sm.mu.Unlock()
 
 	sess.setStatus("stopped")
-	if sess.process != nil && sess.process.alive() {
-		sess.process.shutdown()
+	sess.mu.Lock()
+	proc := sess.process
+	sess.process = nil
+	sess.mu.Unlock()
+
+	if proc != nil && proc.alive() {
+		proc.shutdown()
 	}
 	if sess.promptFile != "" {
 		os.Remove(sess.promptFile)
