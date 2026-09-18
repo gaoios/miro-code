@@ -1,13 +1,60 @@
 # miro-code
 
-**给 Claude Code 装上记忆与编排能力的启动器。** 一个二进制，同时做两件事：
+**一个界面调度你所有的 AI agent，像 CEO 经营一家公司。** miro 自己不生产内容，只干三件事：**调度、分配、验收**。
 
-1. **身份与记忆注入** —— 把 Markdown 文件（人格 / 主人信息 / 记忆 / 技能）组装进系统提示词，让每次冷启动的 Claude Code 记得你是谁、昨天干过什么；
-2. **多 CLI 任务编排** —— 一个入口把编码任务派发给多个已登录的编码 CLI（Codex / Grok / Kimi / Antigravity / OpenCode），Claude 当监督者，你只做判断与验收。
+1. **多 agent 并行调用** —— 在同一个操作界面里调用所有已适配的 agent 工具；每个 agent 各用各的订阅与额度，Key 全程留在本地；
+2. **池子随生态扩容** —— 出了新 agent、新优惠套餐，加进配置就能被 CEO 直接调用，不换界面、不改习惯；
+3. **真活并行干** —— 一条 4 分钟视频的完整工序，五个 agent 同时开工，你只做判断与验收。
 
-> **EN TL;DR**: A launcher for Claude Code with persistent identity, memory, and multi-CLI task orchestration. Fork of [kiyor/soul-cli](https://github.com/kiyor/soul-cli) — thanks to @kiyor for the excellent upstream.
+> **EN TL;DR**: One interface to orchestrate all your AI agents — each with its own subscription and quota. miro-code is the CEO: it dispatches, assigns, and accepts; you judge. Fork of [kiyor/soul-cli](https://github.com/kiyor/soul-cli) — thanks to @kiyor for the excellent upstream.
 
 📖 **中文使用教程**：[docs/miro/tutorial.zh.md](docs/miro/tutorial.zh.md) · GitBook 在线版：<https://xlegao.gitbook.io/mirobiz/>
+
+---
+
+## 核心卖点一：一个界面，多家 agent，各花各的额度
+
+| 已适配 Agent | 在公司里的角色 | 额度归属 |
+|---|---|---|
+| **Claude Code** | CEO / 监督者：拆解任务、分配、验收 | 你的 Claude 订阅 |
+| **Codex**（含 GPT Image 2 生图） | 工程实现 + 高质量封面/头图 | 你的 OpenAI 订阅 |
+| **Grok** | 对抗审查、事实校验、第二实现者 | 你的 xAI 账号 |
+| **Kimi** | 长文档、前端视觉、复杂任务 | 你的 Kimi 套餐 |
+| **Antigravity（agy）** | Gemini 系执行与综合分析 | 你的 Google 订阅 |
+| **OpenCode** | DeepSeek 系写稿、廉价批量执行 | 你的 OpenCode 订阅 |
+| **即梦 CLI / MiniMax / ElevenLabs** 等 | 生图、配音等工序型工具 | 各自的平台额度 |
+
+要点：**miro 不碰你的钱**——不转售 Key、不代充、不归集余额。每个 agent 用它自己账号的额度，你原有的订阅一分不浪费；CEO 只负责把对的活、在对的时间、派给对的 agent，并逐路验收。
+
+## 核心卖点二：池子随时扩容
+
+新 agent 发布了？某家出了骨折优惠套餐？**写进配置就进池子**，CEO 立即可调用——
+
+- 对话型 agent 注册为 backend（走 `spawn --bare` 派发）；
+- 工序型工具（生图、配音、部署类 CLI）注册在 `tools` 下，同一项目环境执行；
+- 不用换界面、不用改操作习惯，你的调用入口永远是这一个。
+
+## 核心卖点三：实战工作流 —— 一条 4 分钟视频，五路并行
+
+拿「多平台订阅，谁在真省钱？」这个选题举例。你只说一句话：
+
+> 「做一条 4 分钟产品介绍视频，选题已定。」
+
+CEO 自动拆解工序，按各 agent 特长**并行**派发：
+
+![miro-code 多 agent 并行视频工作流](docs/assets/workflow-parallel.png)
+
+| 工序 | 派给谁 | 为什么是它 |
+|---|---|---|
+| 分析任务、拆分工序 | 任意你指定的模型 | CEO 的思考层，你说了算 |
+| 写中文口播稿 | **DeepSeek**（经 opencode backend） | 中文长文案强、单价低 |
+| 封面 / 头图，批量出 5 版 | **Codex · GPT Image 2** | 高质量生图，供你挑选 |
+| 正文配图 16 张 | **即梦 CLI** | 额度便宜量大管饱，草稿可整批重跑 |
+| 中文配音 | **MiniMax** | 定稿音色、分片生成便于局部重配 |
+| 事实校验 | **Grok** | 逐句核对每个价格数字，输出修订清单 |
+| 机动产能 | **OpenCode / Qoder / WorkBuddy** | 按各家配额与优惠灵活加派 |
+
+五路同时开工，互不等待；CEO 逐路回收、挑错、不合格打回重做，最后汇总合成。**同样的活，串行做要一下午，并行做只要一轮**——而且每一环用的都是最擅长它的那家额度。
 
 ---
 
@@ -79,7 +126,7 @@ miro spawn --bare --backend grok --model grok-4.6 --project "$PWD" "对抗性审
 **可用 backend**：`codex` / `grok` / `kimi` / `agy`（Antigravity）/ `opencode`，`cc` 留给 Claude 自身。
 
 - `--bare` + `--model` **缺一不可**：`--bare` 确保任务真正派给外部 CLI（不带时会跑 Claude 换皮）；`--model` 用该 CLI 的原生模型名，传错会在会话阶段报 `backend error`。
-- 非对话型 CLI（部署、生图、平台工具类）注册在 `tools` 下——同一项目环境执行，但不冒充模型 backend，这是接入 Meoo / 即梦类工具的扩展点。
+- 非对话型 CLI（部署、生图、平台工具类）注册在 `tools` 下——同一项目环境执行，但不冒充模型 backend，这是接入即梦 / Meoo 类工具的扩展点。
 
 ## Server 模式
 
@@ -107,6 +154,7 @@ miro --evolve      # 自我改进（复盘近期会话，修正 soul 文件，�
 - 拒绝符号链接写入、密钥泄漏检测
 - 核心人格文件（CORE）保护，`--evolve` 改动可回滚
 - spawn 的任务对 worker 是**有界**的：指定项目路径、指定任务、指定验收标准
+- Server 默认只监听本机（`127.0.0.1`），所有 API 强制鉴权
 
 ## 与上游的关系
 

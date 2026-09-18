@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1600px;height:810px;background:radial-gradient(ellipse at 50% -10%,#1c2130 0%,#0d0f14 55%,#08090c 100%);
+font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#e8edf6;overflow:hidden;position:relative}
+.glow{position:absolute;width:900px;height:400px;left:350px;top:-120px;background:radial-gradient(ellipse,#f0b42922,transparent 70%);filter:blur(10px)}
+.wrap{position:relative;padding:34px 60px;height:100%;display:flex;flex-direction:column}
+
+/* ── 顶部：CEO 接任务 ── */
+.top{display:flex;align-items:center;gap:26px;margin-bottom:26px}
+.ceo{flex:none;width:420px;background:linear-gradient(160deg,#1a2030,#12151d);border:1px solid #f0b42955;border-radius:16px;padding:20px 24px;box-shadow:0 12px 40px #f0b42915}
+.ceo .role{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#f0b429;font-weight:700;letter-spacing:2px}
+.ceo .role .dot{width:8px;height:8px;border-radius:50%;background:#f0b429;box-shadow:0 0 10px #f0b429}
+.ceo h1{font-size:30px;margin:8px 0 6px;letter-spacing:1px}
+.ceo h1 em{font-style:normal;color:#f0b429}
+.ceo .task{font-size:14px;color:#93a0b8;background:#0b0d13;border:1px dashed #3a4358;border-radius:10px;padding:10px 14px;margin-top:4px}
+.ceo .task b{color:#e8edf6}
+.arrow{flex:none;font-size:30px;color:#f0b429;opacity:.8}
+.analyze{flex:1;background:#12151d;border:1px solid #2a3245;border-radius:16px;padding:18px 24px}
+.analyze .cap{font-size:12px;color:#93a0b8;letter-spacing:2px;margin-bottom:10px}
+.analyze .steps{display:flex;flex-wrap:wrap;gap:8px}
+.analyze .step{font-size:13px;background:#1a2030;border:1px solid #2a3245;border-radius:20px;padding:6px 14px;color:#c6cfdd}
+.analyze .step b{color:#f0b429;font-weight:600;margin-right:6px}
+.analyze .note{margin-top:10px;font-size:12.5px;color:#7b879c}
+.analyze .note code{color:#3ddc97;font-family:ui-monospace,monospace}
+
+/* ── 中部：五路并行 ── */
+.lanes-cap{display:flex;align-items:center;gap:14px;margin:2px 0 14px}
+.lanes-cap .t{font-size:15px;font-weight:700;color:#e8edf6;letter-spacing:1px}
+.lanes-cap .badge{font-size:12px;color:#3ddc97;border:1px solid #3ddc9766;background:#3ddc9711;border-radius:6px;padding:3px 10px;font-weight:600}
+.lanes-cap .line{flex:1;height:1px;background:linear-gradient(90deg,#2a3245,transparent)}
+.lanes{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;flex:1}
+.lane{background:linear-gradient(170deg,#141822,#101319);border:1px solid #262e42;border-radius:14px;padding:16px 16px 14px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.lane::before{content:'';position:absolute;left:0;top:0;right:0;height:3px;background:var(--ac)}
+.lane .head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.logo{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;color:#fff;flex:none}
+.lane .nm{font-size:16px;font-weight:700}
+.lane .job{font-size:11.5px;color:#8b97ab;margin-top:2px}
+.lane .body{font-size:12.5px;color:#aab4c6;line-height:1.65;flex:0}
+.lane .body b{color:#e8edf6;font-weight:600}
+.lane .out{margin-top:auto;border-top:1px solid #1f2637;padding-top:9px;font-size:11px;color:#5d6a80}
+.lane .out b{display:block;font-size:11.5px;color:#c6cfdd;font-weight:600;font-family:ui-monospace,monospace;margin-top:3px}
+.status{margin-top:10px;display:flex;align-items:center;justify-content:space-between}
+.pill{font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:20px}
+.run{color:#3ddc97;background:#3ddc9715;border:1px solid #3ddc9755}
+.run::before{content:'● ';animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.pct{font-size:11px;color:#5d6a80;font-family:ui-monospace,monospace}
+.bar{height:4px;background:#1c2231;border-radius:4px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ac);border-radius:4px}
+
+/* ── 底部：扩池 + 验收 ── */
+.bottom{display:flex;gap:16px;margin-top:16px}
+.pool{flex:1.35;background:#12151d;border:1px dashed #3a4358;border-radius:14px;padding:14px 20px}
+.pool .cap{font-size:12.5px;color:#93a0b8;margin-bottom:10px}
+.pool .cap b{color:#e8edf6}
+.pool .chips{display:flex;flex-wrap:wrap;gap:8px}
+.pool .chip{font-size:12.5px;padding:5px 13px;border-radius:8px;background:#1a2030;border:1px solid #2a3245;color:#c6cfdd}
+.pool .chip.new{border-color:#f0b42977;color:#f0b429;background:#f0b4290d}
+.pool .chip.new::after{content:'+ 新';font-size:10px;margin-left:6px;color:#0d0f14;background:#f0b429;border-radius:4px;padding:1px 5px;font-weight:700}
+.accept{flex:1;background:linear-gradient(160deg,#1a2030,#12151d);border:1px solid #3ddc9744;border-radius:14px;padding:14px 20px}
+.accept .cap{font-size:12.5px;color:#93a0b8;margin-bottom:8px}
+.accept .cap b{color:#3ddc97}
+.accept .items{display:flex;gap:8px;flex-wrap:wrap}
+.accept .it{font-size:12.5px;color:#c6cfdd;background:#0b0d13;border:1px solid #2a3245;border-radius:8px;padding:6px 12px}
+.accept .it.done{color:#3ddc97;border-color:#3ddc9755}
+.accept .it.done::before{content:'✓ '}
+.foot{display:flex;justify-content:space-between;margin-top:14px;font-size:11.5px;color:#5d6a80}
+.foot .mono{font-family:ui-monospace,monospace;color:#3ddc97}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+
+  <div class="top">
+    <div class="ceo">
+      <span class="role"><span class="dot"></span>MIRO · CEO 调度</span>
+      <h1>一个界面，<em>五路并行</em></h1>
+      <div class="task">「做一条 4 分钟产品介绍视频，选题已定：<b>多平台订阅，谁在真省钱？</b>」</div>
+    </div>
+    <div class="arrow">⟶</div>
+    <div class="analyze">
+      <div class="cap">CEO 自动拆解 —— 用你指定的任意模型分析任务</div>
+      <div class="steps">
+        <span class="step"><b>①</b>拆分工序</span>
+        <span class="step"><b>②</b>按特长分配 worker</span>
+        <span class="step"><b>③</b>并行派发 <code>spawn --bare</code></span>
+        <span class="step"><b>④</b>逐路验收</span>
+        <span class="step"><b>⑤</b>汇总合成</span>
+      </div>
+      <div class="note">每个 agent <b style="color:#e8edf6">各用各的订阅与额度</b>，Key 全程留在本地；miro 不碰你的钱，只管把活派对、派并行、验好收。</div>
+    </div>
+  </div>
+
+  <div class="lanes-cap">
+    <span class="t">并行执行中</span>
+    <span class="badge">5 agents · 同时开工</span>
+    <span class="line"></span>
+  </div>
+
+  <div class="lanes">
+    <div class="lane" style="--ac:#4d6bfe">
+      <div class="head"><div class="logo" style="background:#4d6bfe">DS</div>
+        <div><div class="nm">DeepSeek</div><div class="job">中文长文案</div></div></div>
+      <div class="body">写口播稿：<b>悬念开场 + 三平台算账对比 + 结论钩子</b>，输出分镜级逐段文稿。</div>
+      <div class="out">产出物<b>script_v3.md · 分镜级 42 段</b></div><div class="status"><span class="pill run">写作中</span><span class="pct">78%</span></div>
+      <div class="bar"><i style="width:78%"></i></div>
+    </div>
+
+    <div class="lane" style="--ac:#ececec">
+      <div class="head"><div class="logo" style="background:#10131a;border:1px solid #3a4358">GPT</div>
+        <div><div class="nm">Codex · GPT Image 2</div><div class="job">封面 / 头图</div></div></div>
+      <div class="body">生成视频封面与头图：<b>多平台订阅比价</b>主题，批量出 5 版供 CEO 挑选。</div>
+      <div class="out">产出物<b>cover_v1~v5.png · 3200×2000</b></div><div class="status"><span class="pill run">批量生图</span><span class="pct">5/5 版</span></div>
+      <div class="bar"><i style="width:100%"></i></div>
+    </div>
+
+    <div class="lane" style="--ac:#3ddc97">
+      <div class="head"><div class="logo" style="background:#0f2d22;color:#3ddc97;border:1px solid #3ddc9755">即梦</div>
+        <div><div class="nm">即梦 CLI</div><div class="job">正文配图</div></div></div>
+      <div class="body">按分镜清单批量生成正文插图，<b>额度便宜量大管饱</b>，草稿不满意可整批重跑。</div>
+      <div class="out">产出物<b>shots_01~16.png · 2K 草稿</b></div><div class="status"><span class="pill run">生成中</span><span class="pct">11/16 张</span></div>
+      <div class="bar"><i style="width:69%"></i></div>
+    </div>
+
+    <div class="lane" style="--ac:#8b5cf6">
+      <div class="head"><div class="logo" style="background:#8b5cf6">MX</div>
+        <div><div class="nm">MiniMax</div><div class="job">中文配音</div></div></div>
+      <div class="body">用定稿音色把文稿转成 <b>4 分钟口播配音</b>，按段落分片生成便于局部重配。</div>
+      <div class="out">产出物<b>voice_p1~p4.mp3 · 陈冲音色</b></div><div class="status"><span class="pill run">配音中</span><span class="pct">3/4 段</span></div>
+      <div class="bar"><i style="width:75%"></i></div>
+    </div>
+
+    <div class="lane" style="--ac:#f0b429">
+      <div class="head"><div class="logo" style="background:#f0b429;color:#10131a">𝕏</div>
+        <div><div class="nm">Grok</div><div class="job">事实校验</div></div></div>
+      <div class="body">逐句核对稿中<b>每个价格与折扣数字</b>，标注过时/存疑数据，输出修订清单。</div>
+      <div class="out">产出物<b>factcheck.md · 3 处已修订</b></div><div class="status"><span class="pill run">校验中</span><span class="pct">42 处核对</span></div>
+      <div class="bar"><i style="width:60%"></i></div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="pool">
+      <div class="cap"><b>Agent 池随时扩容</b> —— 新 agent 出了、新优惠套餐出了，加进配置就能被 CEO 直接调用</div>
+      <div class="chips">
+        <span class="chip">Codex</span><span class="chip">DeepSeek</span><span class="chip">Grok</span>
+        <span class="chip">Kimi</span><span class="chip">Antigravity</span><span class="chip">即梦 CLI</span>
+        <span class="chip">MiniMax</span><span class="chip">ElevenLabs</span>
+        <span class="chip new">OpenCode</span><span class="chip new">Qoder CN</span><span class="chip new">WorkBuddy</span>
+        <span class="chip new">你的新 agent…</span>
+      </div>
+    </div>
+    <div class="accept">
+      <div class="cap"><b>CEO 验收</b> —— 逐路回收、挑错、不合格打回重做</div>
+      <div class="items">
+        <span class="it done">文稿 · 已验收</span><span class="it done">封面 · 已选定 v3</span>
+        <span class="it done">配音 · 已验收</span><span class="it">配图 · 复检中</span>
+        <span class="it done">校验 · 3 处已改</span><span class="it">合成 · 排队</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>miro-code · 你只做判断与验收，调度交给 CEO</span>
+    <span class="mono">spawn --bare --backend &lt;agent&gt; --wait</span>
+  </div>
+</div>
+</body>
+</html>
