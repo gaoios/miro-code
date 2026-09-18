@@ -1,141 +1,116 @@
 # miro-code
 
-A soul-aware launcher for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It gives your AI a persistent identity, memory, and the ability to evolve across sessions — plus built-in multi-CLI orchestration: dispatch coding tasks to other logged-in coding CLIs with one command.
+**给 Claude Code 装上记忆与编排能力的启动器。** 一个二进制，同时做两件事：
 
-Claude Code starts fresh every time — no memory, no personality, no idea who you are. **miro-code** fixes this by assembling markdown files (identity, personality, memory, skills) into a system prompt injected at launch.
+1. **身份与记忆注入** —— 把 Markdown 文件（人格 / 主人信息 / 记忆 / 技能）组装进系统提示词，让每次冷启动的 Claude Code 记得你是谁、昨天干过什么；
+2. **多 CLI 任务编排** —— 一个入口把编码任务派发给多个已登录的编码 CLI（Codex / Grok / Kimi / Antigravity / OpenCode），Claude 当监督者，你只做判断与验收。
 
-> 📖 **使用教程（中文）**：[docs/miro/tutorial.zh.md](docs/miro/tutorial.zh.md) · GitBook 版：https://xlegao.gitbook.io/mirobiz/
->
-> Forked & extended from [kiyor/soul-cli](https://github.com/kiyor/soul-cli) — upstream project by @kiyor.
+> **EN TL;DR**: A launcher for Claude Code with persistent identity, memory, and multi-CLI task orchestration. Fork of [kiyor/soul-cli](https://github.com/kiyor/soul-cli) — thanks to @kiyor for the excellent upstream.
 
-## Quick Start
+📖 **中文使用教程**：[docs/miro/tutorial.zh.md](docs/miro/tutorial.zh.md) · GitBook 在线版：<https://xlegao.gitbook.io/mirobiz/>
+
+---
+
+## 它解决什么问题
+
+Claude Code 每次启动都是一张白纸：不知道你是谁、没有历史、没有行事风格。miro-code 在启动时把四个 Markdown 文件组装成系统提示词注入：
+
+```
+Soul 文件 + 记忆 + 技能  →  miro  →  Claude Code（带着灵魂干活）
+     (markdown)          (组装注入)   (--append-system-prompt)
+```
+
+| 文件 | 作用 |
+|---|---|
+| `SOUL.md` | 人格、价值观、说话风格 |
+| `USER.md` | 你的时区、偏好、专业背景 |
+| `MEMORY.md` + 每日笔记 | 长期记忆索引 + 最近发生了什么 |
+| `AGENTS.md` | 行为规则与护栏（哪些事先斩后奏、哪些必须先问） |
+
+二进制名即身份：编译成 `miro`、`jarvis` 或 `atlas`，所有路径、环境变量、日志随之隔离——一台机器跑多个独立 AI 互不干扰。
+
+## 快速开始
+
+**前置**：Go 1.25+、[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 已登录。
 
 ```bash
 git clone https://github.com/gaoios/miro-code.git && cd miro-code
 go build -o miro .
 mv miro ~/go/bin/
 
-miro init                          # interactive wizard
-miro init --archetype companion    # pick a personality archetype
-miro                               # Claude Code, but it remembers
+miro init                          # 交互式向导：起工作区、生成 soul 文件
+miro                               # 启动 —— 这次它记得你
 ```
 
-**Dispatch a task to another coding CLI** (requires `miro server` running + the target CLI logged in):
+**不想回答问话？全参数一次到位**（脚本 / AI 自动化部署友好）：
 
 ```bash
-miro spawn --bare --backend grok --model grok-4.6 \
+miro init --archetype engineer --name kuro --owner alex --tz Asia/Shanghai --yes
+```
+
+### 人格原型
+
+| 原型 | 风格 |
+|---|---|
+| `companion` | 情绪在场，记得小事，读得懂气氛 |
+| `engineer` | 技术同侪，代码优先，干燥幽默 |
+| `steward` | 运营管家，主动、有条理、安静可靠 |
+| `mentor` | 耐心老师，苏格拉底式提问 |
+| 自定义 | 用关键词描述，init 帮你生成 |
+
+首次对话后，AI 会根据你的实际说话方式自动充实人格（day-0 自我丰富）。
+
+## 多 CLI 任务编排（`spawn --bare`）
+
+`miro server` 运行时，同一个会话 API 和 Web UI 后面可以挂多个编码 CLI。Claude 是默认监督者，worker 只接有界任务：
+
+```bash
+miro server    # 常驻：HTTP API + Web UI
+
+# 派发：指定执行者、模型、项目路径、任务、验收方式
+miro spawn --bare --backend codex --model gpt-6-astra \
   --project /absolute/path/to/repo \
-  "Review the concurrency logic in src/ and list the 3 riskiest issues" --wait
+  "实现 XX 并补测试" --wait
+
+# 独立审查（换一个执行者，保持独立性）
+miro spawn --bare --backend grok --model grok-4.6 --project "$PWD" "对抗性审查上一个实现" --wait
 ```
 
-The `init` command creates your workspace, generates soul files, and installs a setup-guide skill — no manual file editing needed.
+**可用 backend**：`codex` / `grok` / `kimi` / `agy`（Antigravity）/ `opencode`，`cc` 留给 Claude 自身。
 
-### Personality Archetypes
+- `--bare` + `--model` **缺一不可**：`--bare` 确保任务真正派给外部 CLI（不带时会跑 Claude 换皮）；`--model` 用该 CLI 的原生模型名，传错会在会话阶段报 `backend error`。
+- 非对话型 CLI（部署、生图、平台工具类）注册在 `tools` 下——同一项目环境执行，但不冒充模型 backend，这是接入 Meoo / 即梦类工具的扩展点。
 
-| Archetype | Vibe |
-|-----------|------|
-| `companion` | Emotionally present partner — remembers the small things, picks up on mood |
-| `engineer` | Technical peer — code first, explain later, dry humor |
-| `steward` | Operations manager — proactive, organized, quietly reliable |
-| `mentor` | Patient teacher — Socratic questions, layered explanations |
-| *(custom)* | Define your own from keywords |
-
-On first launch, the AI automatically enriches its personality based on your conversation (day-0 self-enrichment).
-
-### AI-Friendly (No Stdin Required)
+## Server 模式
 
 ```bash
-miro init --archetype engineer --name kuro --owner alex --tz America/Los_Angeles
+miro server --token <secret>     # HTTP API + Web UI（PWA，可加到手机主屏）
 ```
 
-All flags provided = zero interactive prompts. Perfect for scripting or AI-driven setup.
+- **Web UI**：会话列表、实时流式输出、任务进度、SQLite 会话库全文检索
+- **Telegram**：通知、日报、把对话上下文注入 Telegram 会话
+- **多 agent**：一个 codebase 多个二进制，数据完全隔离
+- **IPC**：会话之间可以互发消息、读写、等待与关闭
 
-> **Requires:** Go 1.25+ and [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-
-### One-Command Linux Deploy
-
-Don't want to set up manually? Feed the bootstrap guide to Claude Code and let it do everything:
+## 自动化
 
 ```bash
-export CLAUDE_CODE_OAUTH_TOKEN="<YOUR_ANTHROPIC_TOKEN>"  # your OAuth token first
-claude -p "$(curl -sfL https://raw.githubusercontent.com/kiyor/soul-cli/main/bootstrap.md)" --dangerously-skip-permissions
+miro --cron        # 记忆整理（定时跑，把每日笔记蒸馏进长期主题）
+miro --heartbeat   # 健康巡逻（探活、报告异常）
+miro --evolve      # 自我改进（复盘近期会话，修正 soul 文件，带自动回滚）
 ```
 
-It'll ask you a few questions (AI name, personality, timezone), then handle Go, Node.js, build, systemd — everything. It even scans your existing Claude Code sessions to personalize the soul.
+配合 cron/systemd 定时触发即可；`--evolve` 的每次修改都有保护机制兜底。
 
-See [Linux Server Deployment Guide](docs/guides/linux-deploy.md) if you prefer doing it yourself.
+## 安全设计
 
-## How It Works
+- 拒绝符号链接写入、密钥泄漏检测
+- 核心人格文件（CORE）保护，`--evolve` 改动可回滚
+- spawn 的任务对 worker 是**有界**的：指定项目路径、指定任务、指定验收标准
 
-```
-Soul Files + Memory + Skills  →  soul-cli  →  Claude Code (with soul)
-     (markdown)                  (assembles)    (--append-system-prompt)
-```
+## 与上游的关系
 
-- **`SOUL.md`** — personality, values, speaking style
-- **`USER.md`** — your timezone, preferences, expertise
-- **`MEMORY.md`** + daily notes — what happened yesterday, long-term knowledge
-- **`AGENTS.md`** — behavioral rules and guardrails
-
-The binary name determines identity: build as `miro`, `jarvis`, or `atlas` — all paths, env vars, and logs derive from it.
-
-## Features
-
-| Feature | How |
-|---------|-----|
-| **Memory** | Daily notes auto-generated from sessions, long-term topics, SQLite session DB |
-| **Evolution** | `--evolve` cron reviews interactions and self-adjusts soul files |
-| **Server mode** | Built-in HTTP server + Web UI for persistent sessions |
-| **Automation** | `--cron` (memory), `--heartbeat` (health checks), `--evolve` (self-improvement) |
-| **Multi-agent** | One codebase, multiple binaries with isolated data |
-| **Multi-CLI workspace** | Claude supervisor + Codex, Grok Build, Kimi, and Antigravity workers; shared tool CLIs such as Meoo |
-| **Safety** | Symlink rejection, secret leak detection, CORE.md protection, auto-rollback |
-| **Telegram** | Notifications, reports, conversation context injection |
-
-## Usage
-
-```bash
-miro                         # interactive session
-miro -p "check disk usage"   # one-shot task
-miro -r                      # resume previous session
-miro server --token secret   # HTTP server + Web UI
-miro --cron                  # memory consolidation
-miro --heartbeat             # health check patrol
-miro --evolve                # self-improvement
-miro status                  # quick diagnostics
-```
-
-### Multi-CLI Agent Workspace
-
-Server mode can run multiple AI CLI backends behind the same session API and
-Web UI. Claude remains the default supervisor, while enabled workers receive
-bounded tasks through `spawn --bare`:
-
-```bash
-miro server
-miro spawn --bare --backend codex --model gpt-6-astra --project "$PWD" "Implement and test the change" --wait
-miro spawn --bare --backend grok --project "$PWD" "Review the implementation independently" --wait
-```
-
-Non-conversational CLIs are registered separately under `tools`. They run in
-the same project environment but do not pretend to be model backends. This is
-the extension point for deployment, image generation, and platform CLIs such
-as Meoo or a locally installed Jimeng-compatible CLI.
-
-See [Multi-CLI Agent Workspace](docs/guides/multi-cli-workspace.md).
-
-## Documentation
-
-**[Full documentation →](https://kiyor.github.io/soul-cli/)**
-
-- [Getting Started](https://kiyor.github.io/soul-cli/getting-started/) — install, configure, launch
-- [Core Concepts](https://kiyor.github.io/soul-cli/concepts/) — soul files, memory, evolution
-- [Soul Files Guide](https://kiyor.github.io/soul-cli/guides/soul-files/) — writing each markdown file
-- [Server Mode](https://kiyor.github.io/soul-cli/guides/server/) — HTTP API, Web UI, deployment
-- [Automation](https://kiyor.github.io/soul-cli/guides/automation/) — cron, heartbeat, evolve
-- [CLI Reference](https://kiyor.github.io/soul-cli/reference/cli/) — every command and flag
-- [API Reference](https://kiyor.github.io/soul-cli/reference/api/) — server endpoints
-- [FAQ](https://kiyor.github.io/soul-cli/faq/)
+本仓库 fork 自 [kiyor/soul-cli](https://github.com/kiyor/soul-cli)（v1.12.0 基线），在此之上维护 Miro Code 品牌的中文文档、部署实践与产品化迭代。命令层面当前仍为 `miro`（独立发行包规划中）。上游的英文文档见 <https://kiyor.github.io/soul-cli/>。
 
 ## License
 
