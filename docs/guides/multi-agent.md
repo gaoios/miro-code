@@ -7,9 +7,9 @@ soul-cli supports running multiple independent AI agents from a single codebase.
 The binary name determines the agent's identity. Build a separate binary for each agent:
 
 ```bash
-go build -ldflags "-X main.defaultAppName=atlas"    -o atlas .     # main assistant
-go build -ldflags "-X main.defaultAppName=sentinel"  -o sentinel .  # health monitor
-go build -ldflags "-X main.defaultAppName=worker"    -o worker .    # task executor
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=atlas"    -o atlas .     # main assistant
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=sentinel"  -o sentinel .  # health monitor
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=worker"    -o worker .    # task executor
 ```
 
 Each binary automatically gets isolated:

@@ -38,7 +38,7 @@ git clone https://github.com/kiyor/soul-cli.git ~/soul-cli
 cd ~/soul-cli
 VERSION=$(cat VERSION)
 COMMIT=$(git rev-parse --short HEAD)
-go build -ldflags "-X main.buildVersion=${VERSION} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.buildCommit=${COMMIT}" -o soul .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.buildVersion=${VERSION} -X github.com/kiyor/soul-cli/internal/app.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X github.com/kiyor/soul-cli/internal/app.buildCommit=${COMMIT}" -o soul .
 mkdir -p ~/.local/bin && cp soul ~/.local/bin/soul
 
 # 6. Initialize workspace
@@ -119,7 +119,7 @@ VERSION=$(cat VERSION)
 COMMIT=$(git rev-parse --short HEAD)
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-go build -ldflags "-X main.buildVersion=${VERSION} -X main.buildDate=${DATE} -X main.buildCommit=${COMMIT}" -o soul .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.buildVersion=${VERSION} -X github.com/kiyor/soul-cli/internal/app.buildDate=${DATE} -X github.com/kiyor/soul-cli/internal/app.buildCommit=${COMMIT}" -o soul .
 
 # Install
 mkdir -p ~/.local/bin
@@ -135,7 +135,7 @@ The binary name determines the app identity. Name it whatever you want:
 
 ```bash
 # Build as "aria"
-go build -ldflags "... -X main.defaultAppName=aria" -o aria .
+go build -ldflags "... -X github.com/kiyor/soul-cli/internal/app.defaultAppName=aria" -o aria .
 cp aria ~/.local/bin/aria
 
 # Now use: aria init, aria server, etc.
@@ -295,7 +295,7 @@ macOS Claude Code uses Keychain for auth. Linux has no Keychain — set `ANTHROP
 Never use bare `go build .` — always include `-ldflags` for version injection:
 
 ```bash
-go build -ldflags "-X main.buildVersion=$(cat VERSION) -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.buildCommit=$(git rev-parse --short HEAD)" -o soul .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.buildVersion=$(cat VERSION) -X github.com/kiyor/soul-cli/internal/app.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X github.com/kiyor/soul-cli/internal/app.buildCommit=$(git rev-parse --short HEAD)" -o soul .
 ```
 
 ## Updating
@@ -305,7 +305,7 @@ cd ~/soul-cli
 git pull
 VERSION=$(cat VERSION)
 COMMIT=$(git rev-parse --short HEAD)
-go build -ldflags "-X main.buildVersion=${VERSION} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.buildCommit=${COMMIT}" -o soul .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.buildVersion=${VERSION} -X github.com/kiyor/soul-cli/internal/app.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X github.com/kiyor/soul-cli/internal/app.buildCommit=${COMMIT}" -o soul .
 cp soul ~/.local/bin/soul
 sudo systemctl restart soul-server
 ```

@@ -114,7 +114,7 @@ VERSION=$(cat VERSION)
 COMMIT=$(git rev-parse --short HEAD)
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-go build -ldflags "-X main.buildVersion=${VERSION} -X main.buildDate=${DATE} -X main.buildCommit=${COMMIT} -X main.defaultAppName=${BINARY_NAME}" -o ~/.local/bin/${BINARY_NAME} .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.buildVersion=${VERSION} -X github.com/kiyor/soul-cli/internal/app.buildDate=${DATE} -X github.com/kiyor/soul-cli/internal/app.buildCommit=${COMMIT} -X github.com/kiyor/soul-cli/internal/app.defaultAppName=${BINARY_NAME}" -o ~/.local/bin/${BINARY_NAME} .
 ```
 
 **Important**: Never use bare `go build .` — the ldflags inject version info that the binary needs.

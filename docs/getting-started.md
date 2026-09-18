@@ -10,12 +10,12 @@
 ```bash
 git clone https://github.com/kiyor/soul-cli.git
 cd soul-cli
-go build -ldflags "-X main.defaultAppName=miro" -o miro .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=miro" -o miro .
 mv miro ~/go/bin/     # or anywhere in PATH
 ```
 
 !!! tip "The name is everything"
-    The `-X main.defaultAppName=miro` flag bakes the identity into the binary. **All paths, env vars, and logs are derived from this name:**
+    The `-X github.com/kiyor/soul-cli/internal/app.defaultAppName=miro` flag bakes the identity into the binary. **All paths, env vars, and logs are derived from this name:**
 
     | Binary name | Home dir | Env prefix | Data dir |
     |-------------|----------|------------|----------|
@@ -149,13 +149,13 @@ If you're running multiple agents (e.g. via [OpenClaw](https://github.com/nicepk
 
 ```bash
 # Build one binary per agent
-go build -ldflags "-X main.defaultAppName=main"     -o main .
-go build -ldflags "-X main.defaultAppName=sentinel"  -o sentinel .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=main"     -o main .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=sentinel"  -o sentinel .
 ```
 
 Each binary auto-discovers its agent config from `openclaw.json` by matching the binary name to `agents.list[].id`. The only things you decide:
 
-1. **Name** — the `-X main.defaultAppName=xxx` flag
+1. **Name** — the `-X github.com/kiyor/soul-cli/internal/app.defaultAppName=xxx` flag
 2. **Workspace** — defaults to `~/.openclaw/workspace`, override with `<NAME>_HOME` env var
 
 Everything else (paths, locks, databases, logs) is derived automatically.

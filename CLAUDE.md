@@ -22,7 +22,7 @@ No external services needed for tests (uses temp dirs and in-memory SQLite). Som
 
 ## Architecture
 
-Multi-file Go program (package main, ~29,000 lines across 58 files) with one internal package (`pkg/im`).
+Multi-file Go program: application code in `internal/app` (single package `app`, ~29,000 lines moved 2026-09-18 from the former root `package main`), thin root `main.go` shim, plus `pkg/im` and `pkg/provider/*`.
 
 ### Source Files (35 non-test files)
 

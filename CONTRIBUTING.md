@@ -38,7 +38,7 @@ Some tests (`TestBuildSkillIndex`, `TestBuildPrompt`) read from `~/.openclaw/` a
 
 ## Code Style
 
-- Single `package main`, no internal packages
+- Application code lives in `internal/app` (single package); root `main.go` is a thin shim; shared providers in `pkg/`
 - Comments in English
 - Test names follow `TestFunctionName_Scenario` convention
 - Chinese text in test fixtures is intentional (testing CJK tokenization)

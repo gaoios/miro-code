@@ -156,7 +156,7 @@ Persistent HTTP server managing multiple Claude Code sessions, with a built-in W
 One of soul-cli's unique design decisions: **the binary name determines the AI's identity**.
 
 ```bash
-go build -ldflags "-X main.defaultAppName=jarvis" -o jarvis .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=jarvis" -o jarvis .
 ```
 
 This single flag cascades everywhere:

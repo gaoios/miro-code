@@ -116,7 +116,7 @@ The agent name is resolved in priority order:
 
 | Priority | Source | Example |
 |----------|--------|---------|
-| 1 | Build-time ldflags | `-X main.defaultAppName=miro` |
+| 1 | Build-time ldflags | `-X github.com/kiyor/soul-cli/internal/app.defaultAppName=miro` |
 | 2 | `AGENT_NAME` env var | `AGENT_NAME=miro ./soul-cli` |
 | 3 | Binary filename | `./miro` (from `os.Args[0]`) |
 

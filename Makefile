@@ -13,7 +13,7 @@ PLIST_DST      = $(HOME)/Library/LaunchAgents/$(PLIST_NAME).plist
 
 # Linked instances — rebuilt together with the primary app
 LINKED_INSTANCES ?=
-VERSION    := $(shell cat VERSION 2>/dev/null || echo dev)
+VERSION    := $(shell cat internal/app/VERSION 2>/dev/null || echo dev)
 COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 # Build date derived from the current commit's author date (ISO-8601 UTC).
 # Critical: keeping this deterministic per-commit means the binary hash
@@ -31,7 +31,7 @@ endif
 # loaded at runtime from <binary>.meta so commits don't change the binary's
 # CDHash (see main.go loadBuildMeta). Without this split, every commit would
 # drift the CDHash and macOS Local Network Privacy would re-prompt.
-LDFLAGS     = -X main.defaultAppName=$(APP_NAME)
+LDFLAGS     = -X github.com/kiyor/soul-cli/internal/app.defaultAppName=$(APP_NAME)
 CODESIGN_IDENTITY ?= soul-cli Local Dev
 ENTITLEMENTS ?= weiran.entitlements
 
@@ -44,7 +44,7 @@ INFO_PLIST_BUILT = build/$(APP_NAME).Info.plist
 
 .PHONY: build install test clean server-install server-uninstall server-restart server-status server-logs setup-codesign install-all install-linked restart-all fts-index
 
-$(INFO_PLIST_BUILT): $(INFO_PLIST_TMPL) VERSION
+$(INFO_PLIST_BUILT): $(INFO_PLIST_TMPL) internal/app/VERSION
 	@mkdir -p build
 	@sed -e 's/@@APP_NAME@@/$(APP_NAME)/g' \
 	     -e 's/@@VENDOR@@/$(VENDOR)/g' \

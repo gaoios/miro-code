@@ -11,7 +11,7 @@ Claude Code starts fresh every time — no memory, no personality, no idea who y
 
 # Or do it yourself:
 git clone https://github.com/kiyor/soul-cli.git && cd soul-cli
-go build -ldflags "-X main.defaultAppName=miro" -o miro .
+go build -ldflags "-X github.com/kiyor/soul-cli/internal/app.defaultAppName=miro" -o miro .
 miro    # Claude Code, but it remembers
 ```
 
