@@ -121,7 +121,7 @@ func decodeJWTExp(token string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	pad := (4 - len(parts[1])%4) % 4
-	decoded, err := base64.RawURLEncoding.DecodeString(parts[1] + strings.Repeat("=", pad))
+	decoded, err := base64.URLEncoding.DecodeString(parts[1] + strings.Repeat("=", pad))
 	if err != nil {
 		return time.Time{}, false
 	}
